@@ -51,6 +51,38 @@ def grab_breadth(fr, word):
                 return v
     return None
 
+import re, requests
+from bs4 import BeautifulSoup
+
+def parse_naver_index(url):
+    r = requests.get(url, timeout=20, headers={"User-Agent":"Mozilla/5.0"})
+    r.raise_for_status()
+    s = BeautifulSoup(r.text, "lxml")
+    # 지수
+    idx_txt = s.select_one(".no_today .blind")
+    idx = float(idx_txt.text.replace(",","")) if idx_txt else None
+    # 등락 종목수(상승/보합/하락)
+    html = s.get_text(" ")
+    m_up   = re.search(r"상승\s*([0-9,]+)\s*종목", html)
+    m_flat = re.search(r"보합\s*([0-9,]+)\s*종목", html)
+    m_dn   = re.search(r"하락\s*([0-9,]+)\s*종목", html)
+    up   = int(m_up.group(1).replace(",",""))   if m_up else None
+    flat = int(m_flat.group(1).replace(",","")) if m_flat else None
+    dn   = int(m_dn.group(1).replace(",",""))   if m_dn else None
+    return idx, up, dn, flat
+
+def fallback_naver():
+    k_idx, k_up, k_dn, k_flat = parse_naver_index("https://finance.naver.com/sise/sise_index.nhn?code=KOSPI")
+    q_idx, q_up, q_dn, q_flat = parse_naver_index("https://finance.naver.com/sise/sise_index.nhn?code=KOSDAQ")
+    return {
+        "source":"NAVER_SEC 잠정(secondary)",
+        "kospi":k_idx,"kosdaq":q_idx,
+        "adv":k_up if k_up is not None else None,
+        "dec":k_dn if k_dn is not None else None,
+        "unch":k_flat if k_flat is not None else None
+    }
+
+
 with sync_playwright() as p:
     b = p.chromium.launch(headless=True)
     ctx = b.new_context()
