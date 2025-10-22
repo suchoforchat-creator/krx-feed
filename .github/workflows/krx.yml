@@ -37,3 +37,18 @@ jobs:
           git commit -m "update feed" || echo "nothing to commit"
           git push
 
+    # .github/workflows/krx-feed.yml 의 마지막 커밋 스텝 교체
+      - name: Commit files
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: "out/*.csv out/html/*.html"
+          message: "auto: update feed"
+          default_author: github_actions
+
+      # 선택: HTML을 잡아서 아티팩트로도 저장
+      - name: Upload HTML debug
+        uses: actions/upload-artifact@v4
+        with:
+          name: html-debug
+          path: out/html/*.html
+      
