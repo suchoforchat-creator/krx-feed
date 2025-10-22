@@ -121,8 +121,11 @@ with sync_playwright() as p:
         dec  = dec  or grab_breadth(fr, "하락")
         unch = unch or grab_breadth(fr, "보합")
 
-    row = {"time_kst": now_kst(), "source": "KRX_DOM",
-           "kospi": kospi, "kosdaq": kosdaq, "adv": adv, "dec": dec, "unch": unch}
+    try:
+        row = {"time_kst": now_kst(), "source": "KRX_DOM",
+               "kospi": kospi, "kosdaq": kosdaq, "adv": adv, "dec": dec, "unch": unch}
+    except exception:
+        row = {"time_kst": now_kst(), **fallback_naver()}
     df = pd.DataFrame([row])
     df.to_csv("out/latest.csv", index=False, encoding="utf-8-sig")
     df.to_csv(f"out/krx_{datetime.now(KST).strftime('%Y%m%d')}.csv", index=False, encoding="utf-8-sig")
