@@ -1,2 +1,2 @@
-﻿time_kst,kospi,kospi_adv,kospi_dec,kospi_unch,kosdaq,kosdaq_adv,kosdaq_dec,kosdaq_unch,usdkrw,dxy,wti,brent,gold,btc_usd,us10y_pct,kr10y_pct,source_krx,source_usdkrw,source_dxy,source_wti,source_brent,source_gold,source_btc,source_us10y,source_kr10y
-2025-10-23 02:19:42,3883.68,637,249,45,879.15,918,702,110,941.0,,,,,175.0,4.0,8.0,NAVER_SEC 1차-잠정,NAVER_SEC 1차-잠정,잠정(secondary): MarketWatch 실패,잠정(secondary): MW WTI 실패,잠정(secondary): MW Brent 실패,잠정(secondary): MW Gold 실패,잠정(secondary): CoinDesk BTC,잠정(secondary): CNBC US10Y(%),잠정(secondary): Investing KR10Y(%)
+﻿time_kst,kospi,kosdaq,adv,dec,unch,usdkrw,gold_usd,dubai_usd,src_kospi,src_kosdaq,src_fx
+2025-10-23 02:49:10,3883.68,879.15,,,,,,,NAVER_FIN,NAVER_FIN,NONE
