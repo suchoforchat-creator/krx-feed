@@ -1,0 +1,37 @@
+name: krx feed
+
+on:
+  schedule:
+    - cron: "15 1 * * 1-5"   # 평일 10:15 KST (UTC+9 = 01:15 UTC)
+  workflow_dispatch: {}       # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: |
+          pip install playwright pandas lxml html5lib
+          python -m playwright install --with-deps chromium
+
+      - name: Run scraper
+        run: |
+          python krx_scrape.py
+
+      - name: Commit CSV
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add out/latest.csv out/krx_*.csv || true
+          git commit -m "update feed" || echo "nothing to commit"
+          git push
