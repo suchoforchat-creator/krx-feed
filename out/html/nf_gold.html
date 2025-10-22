@@ -1,0 +1,788 @@
+
+<script language=javascript src="/template/head_js.naver?referer=info.finance.naver.com&menu=marketindex&submenu=marketend"></script>
+<script type="text/javascript" src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/info/jindo.min.ns.1.5.3.euckr.js"></script>
+<script type="text/javascript" src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/jindo.1.5.3.element-text-patch.js"></script>
+
+
+	
+	
+	<div id="container" style="padding-bottom:0px;">
+	
+
+		
+
+
+
+
+
+
+
+
+
+	<div class="h_company">
+		<h2>국내 금</h2>
+		<div class="description">
+			<a href="/marketindex/?tabSel=gold#tab_section" class="pad_btn pad_btn_v6"><span class="blind">금시세</span></a>
+		</div>
+	</div>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		<div id="content">
+    <div class="spot">
+        <div class="today">
+            <p class="no_today">
+                <em class="no_down">
+                    <span class="no1">1</span><span class="no8">8</span><span class="no6">6</span><span class="shim">,</span><span class="no7">7</span><span class="no2">2</span><span class="no1">1</span><span class="jum">.</span><span class="no4">4</span><span class="no7">7</span>
+                </em>
+                <span class="txt_gram">원/g</span>
+            </p>
+            <p class="no_exday">
+                <span class="txt_comparison">전일대비</span>
+                <em class="no_down">
+                    <span class="ico down"></span>
+                    
+                    <span class="no2">2</span><span class="shim">,</span><span class="no6">6</span><span class="no5">5</span><span class="no7">7</span><span class="jum">.</span><span class="no5">5</span><span class="no8">8</span>
+                </em>
+                <em class="no_down">
+                    <span class="parenthesis1">(</span>
+                    <span class="ico minus">-</span><span class="no1">1</span><span class="jum">.</span><span class="no4">4</span><span
+                        class="per">%</span>
+                    <span class="parenthesis2">)</span>
+                </em>
+            </p>
+        </div>
+        <div class="exchange_info">
+            <span class="date">2025.10.22 23:59</span>
+            <span class="standard">신한은행 기준</span>
+            <span class="round">고시회차 <em>439</em>회</span>
+        </div>
+
+
+        <!-- 차트 컨트롤 영역 -->
+        <div class="chart_control_area">
+            <dl class="line">
+                <dd>
+                    <ul>
+                        <li class="month"><a href="#" onclick="showChart('month');">1개월</a></li>
+                        <li class="month3"><a href="#" class="on" onclick="showChart('month3');">3개월</a></li>
+                        <li class="year"><a href="#" onclick="showChart('year');">1년</a></li>
+                        <li class="year3"><a href="#" onclick="showChart('year3');">3년</a></li>
+                        <li class="year5"><a href="#" onclick="showChart('year5');">5년</a></li>
+                        <li class="year10"><a href="#" onclick="showChart('year10');">10년</a></li>
+                    </ul>
+                </dd>
+            </dl>
+        </div>
+        <!-- //차트 컨트롤 영역 -->
+
+        <!-- 차트 -->
+        <div class="flash_area">
+            <img src="https://ssl.pstatic.net/imgfinance/chart/marketindex/area/month3/CMDT_GD.png" width="700" alt="차트"
+                 onerror="this.src='https://ssl.pstatic.net/imgstock/chart3/world2008/error_700x243.gif'"/>
+        </div>
+        <!-- //차트 -->
+
+    </div>
+    <div class="section_calculator">
+        <h3 class="h_gold_calculator"><span>금 계산기 (실물로 살 때 기준)</span></h3>
+        <div class="calculator gold">
+            <div class="inner">
+                <div class="input">
+                    <div class="input_area">
+                        <input id="calcInput" type="text" value="3.75" onkeyup="calcGoldSise(event);">
+                        <img src="https://ssl.pstatic.net/static/nfinance/img_gram.gif" width="8" height="14" alt="">
+                    </div>
+                </div>
+                <div class="same"><img src="https://ssl.pstatic.net/static/nfinance/ico_same.gif" width="28" height="15" alt=""></div>
+                <div class="view">
+                    <div class="input_area">
+                        <input id="calcOutput" type="text" readonly
+                               value="700,205.51">
+                        <img src="https://ssl.pstatic.net/static/nfinance/img_won.gif" width="12" height="14" alt="">
+                    </div>
+                </div>
+            </div>
+        </div>
+        <h3 class="h_weight"><span>중량 기준</span></h3>
+        <table border="1" class="tbl_calculator gold" summary="중량 기준 가격">
+            <caption>중량 기준</caption>
+            <colgroup>
+                <col width="100">
+                <col width="99">
+                <col width="99">
+                <col width="99">
+                <col width="99">
+                <col width="99">
+            </colgroup>
+            <thead>
+            <tr>
+                <th class="th_gold1"><span>3.75g (1돈)</span></th>
+                <th class="th_gold2"><span>7.5g (2돈)</span></th>
+                <th class="th_gold3"><span>11.25g (3돈)</span></th>
+                <th class="th_gold4"><span>15g (4돈)</span></th>
+                <th class="th_gold5"><span>18.75g (5돈)</span></th>
+                <th class="th_gold6"><span>37.5g (10돈)</span></th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <td><em>700,205.51</em>원
+                </td>
+                <td><em>1,400,411.02</em>원
+                </td>
+                <td><em>2,100,616.53</em>원
+                </td>
+                <td><em>2,800,822.05</em>원
+                </td>
+                <td><em>3,501,027.56</em>원
+                </td>
+                <td><em>7,002,055.12</em>원
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <ul class="tbl_info">
+            <li>1트로이온스(Troy ounce) = 31.1034768g / 1돈 = 3.75g / 1트로이온스 = 8.294돈</li>
+            <li>매매기준율(원화) = 국제금시세÷ 31.1034768 x 원달러환율 x 99.99% / <em>실물거래시 부가가치세(10%)는 별도 </em></li>
+        </ul>
+    </div>
+    <div class="section_news _replaceNewsLink">
+        <h3 class="h_news"><span>관련 뉴스</span></h3>
+        <ul>
+            
+                <li>
+                    <dl>
+                        <dt>
+                            <a href="/marketindex/news/newsRead.naver?officeId=001&articleId=0015695307&category=gold"
+                               onclick="clickcr(this, 'men.list', '0015695307', '1', event);">구윤철 "3천500억달러 투자, 통화 스와프보다는 투자구조 초점"</a></dt>
+                        <dd>블룸버그 인터뷰서 "직접투자·대출·보증 혼합 협상 주력" 강조 구윤철 부총리 겸 기획재정부 장관은 3천500억 달러의 대미 투자와 관련해 통화 스와프보다는 투자 구조에 초점을 맞추고 있다고 밝혔다. 23일 관가에 따 <span class="writing"></span><span
+                                class="date">2025-10-23 00:14:03</span></dd>
+                    </dl>
+                </li>
+            
+                <li>
+                    <dl>
+                        <dt>
+                            <a href="/marketindex/news/newsRead.naver?officeId=011&articleId=0004546432&category=gold"
+                               onclick="clickcr(this, 'men.list', '0004546432', '2', event);">코스피 랠리에도 원·달러 환율 1430원 턱밑 마감 [김혜란의 FX]</a></dt>
+                        <dd>원·달러 환율이 1430원 안팎을 오르내리며 맥을 못추고 있다. 최근 코스피 랠리로 원화값도 올라야(환율 하락) 하는 게 통상적인 흐름이지만 미중 갈등 고조, 일본 새 총리 선출 변수 등의 직격탄을 맞으며 불안한 모 <span class="writing"></span><span
+                                class="date">2025-10-22 16:16:11</span></dd>
+                    </dl>
+                </li>
+            
+                <li>
+                    <dl>
+                        <dt>
+                            <a href="/marketindex/news/newsRead.naver?officeId=001&articleId=0015694514&category=gold"
+                               onclick="clickcr(this, 'men.list', '0015694514', '3', event);">엿새째 사상 최고치 경신</a></dt>
+                        <dd>22일 서울 중구 하나은행 딜링룸 현황판에 코스피 지수 등이 표시되고 있다. 이날 코스피 지수는 전 거래일 대비 59.84포인트(1.56%)오른 3883.68에, 코스닥은 6.65포인트(0.76%) 오른 879.15 <span class="writing"></span><span
+                                class="date">2025-10-22 15:55:54</span></dd>
+                    </dl>
+                </li>
+            
+        </ul>
+        <a href="/news/news_list.naver?mode=LSS3D&section_id=101&section_id2=258&section_id3=429" onclick="clickcr(this, 'men.more', '', '', event);"
+           class="btn_more"><img src="https://ssl.pstatic.net/static/nfinance/btn_more.gif" width="34" height="18" alt="더보기"></a>
+    </div>
+    <iframe title="일별시세" src="/marketindex/goldDailyQuote.naver" id="goldDailyQuote" width="700px" height="412px"
+            frameborder="0" scrolling="no" marginheight="0" marginwidth="0"></iframe>
+</div>
+
+<script type="text/javascript" src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/info/jindo.min.ns.1.5.3.euckr.js"></script>
+<script type="text/javascript" charset="euckr"
+        src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/jindoComponent/jindo.Component.1.0.3.js"></script>
+<script type="text/javascript" charset="euckr"
+        src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/jindoComponent/jindo.UIComponent.1.0.1.js"></script>
+<script type="text/javascript" charset="euckr"
+        src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/jindoComponent/jindo.TextRange.1.0.1.js"></script>
+<script type="text/javascript" charset="euckr"
+        src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/jindoComponent/jindo.WatchInput.1.0.1.js"></script>
+<script type="text/javascript" charset="euckr"
+        src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/jindoComponent/jindo.Timer.1.0.3.js"></script>
+<script type="text/javascript" charset="euckr"
+        src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/jindoComponent/jindo.Formatter.1.1.0.js"></script>
+<script type="text/javascript" charset="euckr"
+        src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/jindoComponent/jindo.NumberFormatter.1.0.1.js"></script>
+<script type="text/javascript" src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/ichart.js"></script>
+<script type="text/javascript" language="javascript">
+    
+    var calcInput, calcOutput;
+    var DEAL_VAL = 186721.47;
+
+    function calcGoldSise(event) {
+        if (event.keyCode != 13 && event.keyCode != 27 && event.keyCode != 37 && event.keyCode != 38 && event.keyCode != 110 && event.keyCode != 229) {
+            var regExp = new RegExp("[^0-9\.\,]");
+            var sInputValue = jindo.$("calcInput").value;
+
+            if (regExp.test(sInputValue)) {
+                alert("숫자, 소수점(.)만 입력하실 수 있습니다.");
+                jindo.$("calcInput").value = revertInputText(sInputValue);
+                return false;
+            }
+
+            // 사용자가 입력한 콤마(,) 제거
+            if (sInputValue.substr(sInputValue.length - 1, 1) == ",") {
+                jindo.$("calcInput").value = revertInputText(sInputValue);
+                return false;
+            }
+
+            // 맨 앞에 있는 숫자 0 없애기
+            if (sInputValue == "0" || sInputValue == "." || sInputValue == ",") {
+                jindo.$("calcInput").value = revertInputText(sInputValue);
+                return false;
+            }
+
+            // 소수점 2개가 없도록
+            var match = sInputValue.match(/\./g);
+            if (match != null && match.length >= 2) {
+                jindo.$('calcInput').value = revertInputText(sInputValue);
+                return false;
+            }
+
+            // 소수점을 입력한 경우, 일단 대기
+            var pointPosIndex = sInputValue.indexOf('.');
+            if (pointPosIndex != -1 && pointPosIndex == sInputValue.length - 1) {
+                return false;
+            }
+
+            // 소수점 2자리 유지
+            if (pointPosIndex != -1 && sInputValue.substring(pointPosIndex + 1, sInputValue.length).length > 2) {
+                jindo.$('calcInput').value = revertInputText(sInputValue);
+                return false;
+            }
+
+            fInputValue = 0.0;
+            sInputValue = sInputValue.replace(/,/g, "");
+            if (sInputValue != "") {
+                fInputValue = parseFloat(sInputValue);
+            }
+
+            if (fInputValue > 1000000000000) {
+                alert("1,000,000,000,000g까지 계산할 수 있습니다.");
+                sInputValue = "1000000000000";
+                fInputValue = 1000000000000;
+            }
+
+            jindo.$('calcInput').value = changeNumberFormatForInput(sInputValue);
+            jindo.$('calcOutput').value = changeNumberFormatForOutput(fInputValue * DEAL_VAL);
+        }
+    }
+
+    function revertInputText(sOrgText) {
+        var sResult = sOrgText;
+
+        if (sOrgText != "") {
+            sResult = sOrgText.substr(0, sOrgText.length - 1);
+        }
+
+        return sResult;
+    }
+
+    function changeNumberFormatForInput(sTargetValue) {
+        if (sTargetValue == "") {
+            return sTargetValue;
+        }
+
+        var sIntValue = new String("");
+        var sResult = new String("");
+        var pointPosIndex = sTargetValue.indexOf('.');
+
+        if (pointPosIndex != -1) {
+            sIntValue = sTargetValue.substring(0, pointPosIndex - 1);
+        } else {
+            sIntValue = sTargetValue;
+        }
+
+        if (sIntValue.length >= 3) {
+            for (i = sIntValue.length - 3; i > 0; i -= 3) {
+                sResult = "," + sIntValue.substr(i, 3) + sResult;
+            }
+
+            sResult = sIntValue.substr(0, 3 + i) + sResult;
+
+            if (pointPosIndex != -1) {
+                sResult = sResult + sTargetValue.substring(pointPosIndex, sTargetValue.length);
+            }
+        } else {
+            sResult = sTargetValue;
+        }
+
+        return sResult;
+    }
+
+    function changeNumberFormatForOutput(fTargetValue) {
+        fTargetValue = Math.round(fTargetValue * 100) / 100;
+        var sTargetValue = new String(fTargetValue);
+        var sIntValue = new String(Math.floor(fTargetValue));
+        var sResult = new String("");
+
+        if (sIntValue.length >= 3) {
+            for (i = sIntValue.length - 3; i > 0; i -= 3) {
+                sResult = "," + sIntValue.substr(i, 3) + sResult;
+            }
+
+            sResult = sIntValue.substr(0, 3 + i) + sResult;
+
+            var pointPosIndex = sTargetValue.indexOf('.');
+            if (pointPosIndex != -1) {
+                sResult = sResult + sTargetValue.substring(pointPosIndex, sTargetValue.length);
+            }
+        } else {
+            sResult = sTargetValue;
+        }
+
+        return sResult;
+    }
+
+    
+    jindo.$Fn(function (e) {
+        removeCalcNumber();
+    }).attach(jindo.$('calcInput'), 'click');
+
+    function removeCalcNumber() {
+        jindo.$('calcInput').value = "";
+        jindo.$('calcOutput').value = "0";
+    }
+
+    jindo.$Fn(function () {
+        jindo.$$('title')[0].innerHTML = "국내 금 : 네이버페이 증권";
+    }).attach(document, "domready");
+
+    // 선 차트 노출
+    function showChart(target) {
+        jindo.$A(jindo.$$("dl.line dd ul li")).forEach(function (v) {
+            if (jindo.$Element(v).className() == target) {
+                jindo.$Element(v).child()[0].addClass("on");
+                var welChart = jindo.$Element(jindo.$$.getSingle("div.flash_area img"));
+                welChart.attr("src", "https://ssl.pstatic.net/imgfinance/chart/marketindex/area/" + target + "/CMDT_GD.png");
+            } else {
+                jindo.$Element(v).child()[0].removeClass("on");
+            }
+        });
+    }
+
+</script>
+		
+<div class="aside" >
+		<div class="spot_aside" style="height:1200px;border-bottom:0px;">
+			
+			
+			
+				<h3 class="h_exchange2"><span>고시가격</span></h3>
+				<table class="tbl_exchange market" summary="고시가격">
+				<caption>고시가격</caption>
+				<colgroup>
+				<col>
+				<col width="120">
+				</colgroup>
+				<thead>
+				<tr>
+				<th>구분</th>
+				<th>현재가</th>
+				</tr>
+				</thead>
+				<tbody>
+				<tr>
+				<th class="th_ex8"><span>계좌 (고객입금 시)</span></th>
+				<td>188,588.68<span>원</span></td>
+				</tr>
+				<tr>
+				<th class="th_ex9"><span>계좌 (고객출금 시)</span></th>
+				<td>184,854.26<span>원</span></td>
+				</tr>
+				<tr>
+				<th class="th_ex10"><span>실물 (고객이 살 때)</span></th>
+				<td>196,057.54<span>원</span></td>
+				</tr>
+				<tr>
+				<th class="th_ex11"><span>실물 (고객이팔 때)</span></th>
+				<td>177,385.40<span>원</span></td>
+				</tr>
+				<tr>
+				<th class="th_ex12"><span>기준 국제 금 (트로이 온스)</span></th>
+				<td>4,053.22<span>달러</span></td>
+				</tr>
+				<tr>
+				<th class="th_ex13"><span>기준 원달러 환율</span></th>
+				<td>1,433.00<span>원</span></td>
+				</tr>
+				</tbody>
+				</table>
+				<h3 class="h_product"><a href="http://www.shinhan.com/websquare/websquare_contents.jsp?w2xPath=/contents/finance_mall/main/finance_gold_main.xml&mid=A00006&" target="_blank"><span>관련상품</span></a></h3>
+				<div class="product_area">
+					<div class="thumb">
+						<a href="http://www.shinhan.com/websquare/websquare_contents.jsp?w2xPath=/contents/finance_mall/main/finance_gold_main.xml&mid=A00006&" onclick="clickcr(this, 'met.12', '', '1', event);" target="_blank"><img src="https://ssl.pstatic.net/static/nfinance/img_goldbar.gif" width="52" height="40" alt=""><span class="mask"></span></a>
+					</div>
+					<dl>
+					<dt><a href="http://www.shinhan.com/websquare/websquare_contents.jsp?w2xPath=/contents/finance_mall/main/finance_gold_main.xml&mid=A00006&" onclick="clickcr(this, 'met.12', '', '2', event);" target="_blank">신한은행 골드몰</a></dt>
+					<dd><a href="http://www.shinhan.com/websquare/websquare_contents.jsp?w2xPath=/contents/finance_mall/main/finance_gold_main.xml&mid=A00006&" onclick="clickcr(this, 'met.12', '', '3', event);" target="_blank">신한골드리슈, 신한 골드바</a></dd>
+					</dl>
+
+				<h3 class="h_exchange_gold" style="margin-top:70px;"><span>금 고시가격 안내</span></h3>
+				<p class="info">국제금가격 및 원달러환율의 움직임에 따라 재고시될 수 있습니다. 현재가 및 차트는 매매기준율로 제공됩니다.</p>
+			
+			
+			
+			
+			
+			
+			
+			
+			
+			</div>
+
+            
+			
+			<div class="section_aside">
+				<h3 class="h_market_indi"><span>주요 시장지표</span></h3>
+				<table class="tbl_indicator" summary="주요 시장 지표 리스트">
+				<caption>주요 시장 지표</caption>
+				<colgroup>
+				<col width="40">
+				<col width="60">
+				<col width="81">
+				<col width="54">
+				</colgroup>
+				<thead>
+				<tr>
+				<th>구분</th>
+				<th>종목</th>
+				<th>거래량</th>
+				<th>전일비</th>
+				</tr>
+				</thead>
+				<tbody>
+				
+				
+				
+				
+				
+				
+					
+					
+						
+						
+					
+					
+				
+				<tr class="up">
+				<th class="th_indi8">
+				<a href="exchangeMain.naver" onclick="clickcr(this, 'meh.1', '', '', event);"><span>환율</span></a></th>
+				<th class="th_type1"><a href="exchangeDetail.naver?marketindexCd=FX_USDKRW" onclick="clickcr(this, 'meh.2', '', '', event);"><span>미국USD</span></a></th>
+				<td>1,433.30<span>원</span></td>
+				<td><img src="https://ssl.pstatic.net/static/nfinance/ico_up.gif" width="7" height="6" alt="상승"> 1.30</td>
+				</tr>
+				
+				
+					
+						
+						
+					
+					
+					
+				
+				<tr class="down">
+				<th class="th_indi9">
+				<a href=" goldMain.naver" onclick="clickcr(this, 'meh.3', '', '', event);"><span> 금시세</span></a></th>
+				<th class="th_type2"><a href=" worldGoldDetail.naver?fdtc=2&marketindexCd=CMDT_GC" onclick="clickcr(this, 'meh.4', '', '', event);"><span>국제 금</span></a></th>
+				<td>4,109.10<span> 달러</span></td>
+				<td><img src="https://ssl.pstatic.net/static/nfinance/ico_down.gif" width="7" height="6" alt="하락">  250.30</td>
+				</tr>
+				
+				
+					
+					
+						
+						
+					
+					
+				
+				<tr class="up">
+				<th class="th_indi10">
+				<a href=" oilMain.naver" onclick="clickcr(this, 'meh.5', '', '', event);"><span> 유가</span></a></th>
+				<th class="th_type3"><a href=" worldOilDetail.naver?fdtc=2&marketindexCd=OIL_DU" onclick="clickcr(this, 'meh.6', '', '', event);"><span>두바이유</span></a></th>
+				<td>63.34<span> 달러</span></td>
+				<td><img src="https://ssl.pstatic.net/static/nfinance/ico_up.gif" width="7" height="6" alt="상승"> 0.19</td>
+				</tr>
+				
+				
+					
+					
+					
+						
+						
+					
+				
+				<tr class="same2">
+				<th class="th_indi11">
+				<a href=" interestMain.naver" onclick="clickcr(this, 'meh.7', '', '', event);"><span> 금리</span></a></th>
+				<th class="th_type4"><a href=" interestDetail.naver?marketindexCd=IRR_CD91" onclick="clickcr(this, 'meh.8', '', '', event);"><span>CD(91일)</span></a></th>
+				<td>2.54<span> %</span></td>
+				<td><img src="https://ssl.pstatic.net/static/nfinance/ico_same2.gif" width="7" height="6" alt="보합"> 0.00</td>
+				</tr>
+				
+				
+					
+					
+						
+						
+					
+					
+				
+				<tr class="up">
+				<th class="th_indi12">
+				<a href=" materialMain.naver" onclick="clickcr(this, 'meh.9', '', '', event);"><span> 원자재</span></a></th>
+				<th class="th_type5"><a href=" materialDetail.naver?marketindexCd=CMDT_CDY" onclick="clickcr(this, 'meh.10', '', '', event);"><span>구리</span></a></th>
+				<td>10,612.00<span> 달러</span></td>
+				<td><img src="https://ssl.pstatic.net/static/nfinance/ico_up.gif" width="7" height="6" alt="상승"> 31.00</td>
+				</tr>
+				
+				</tbody>
+				</table>
+			</div>
+			
+
+			<div class="section_aside">
+				<div class="tab_search search3">
+					<a href="#" onclick="clickcr(this, 'rch.1', '', '', event); return false;"><span>최근조회</span></a>
+					<a href="#" onclick="clickcr(this, 'rch.3', '', '', event); return false;"><span>MY STOCK</span></a>
+				</div>
+				<h3 class="blind">최근조회</h3>
+				<table class="tbl_search" summary="최근조회 리스트">
+				<caption>최근조회</caption>
+				<colgroup>
+				<col>
+				<col width="55">
+				<col width="87">
+				</colgroup>
+				<thead>
+				<tr>
+				<th>업체명</th>
+				<th>거래량</th>
+				<th>전일비</th>
+				</tr>
+				</thead>
+				<tbody>
+				</tbody>
+				</table>
+				<div class="more_info">
+					<span>
+						<a href="#" onclick="clickcr(this, 'rch.5', '', '', event); return false;"><img src="https://ssl.pstatic.net/static/nfinance/btn_prev2.gif" width="17" height="15" alt="이전"></a>
+						<a href="#" onclick="clickcr(this, 'rch.6', '', '', event); return false;"><img src="https://ssl.pstatic.net/static/nfinance/btn_next2.gif" width="17" height="15" alt="다음"></a>
+					</span>
+					<a href="#" onclick="javascript:openMyitemNew('https://' + window.location.hostname); clickcr(this, 'rch.7', '', '', event);" class="btn_more _mystock_more_info"><img src="https://ssl.pstatic.net/static/nfinance/btn_more5.gif" width="33" height="10" alt="더보기"></a>
+				</div>
+			</div>
+			
+
+			
+		</div>
+<script type="text/javascript" language="javascript" src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/info/myStock.js"></script>
+<script type="text/javascript" language="javascript" src="https://ssl.pstatic.net/imgstock/static.pc/20250828144601/js/util.js"></script>
+<script language="javascript">
+
+function toggleTabSearch(e){
+	var currentElement = jindo.$Element(jindo.$Event(e).currentElement);
+	var parentElement = currentElement.parent();
+	var id = currentElement.className();
+	var order = parentElement.indexOf(currentElement) + 3;
+	parentElement.className("tab_search search"+ order);
+
+	// 페이징을 위해서 order값에 따라 최근조회인지 mystock인지 type을 저장
+	if (order == 3) {
+		currentType = "recent";
+	} else {
+		currentType = "mystock";
+	}
+}
+
+jindo.$Fn(function(){
+	if ('true' == 'true') {
+		getStockRightMenuData('000000', 'recent', 1, 'https://' + window.location.hostname, 'https://ssl.pstatic.net/static/nfinance');
+
+		var tabSearchArea = jindo.$$.getSingle('.tab_search');
+		var moreInfoArea = jindo.$Element(jindo.$$.getSingle('.tbl_search')).next().$value();
+
+		jindo.$Fn(function(e) {toggleTabSearch(e); getStockRightMenuData('000000', 'recent', 1, 'https://' + window.location.hostname, 'https://ssl.pstatic.net/static/nfinance'); }).attach(jindo.$$.getSingle('a' ,tabSearchArea), 'click');
+		jindo.$Fn(function(e) {toggleTabSearch(e); getStockRightMenuData('000000', 'mystock', 1, 'https://' + window.location.hostname, 'https://ssl.pstatic.net/static/nfinance'); }).attach(jindo.$$('a' ,tabSearchArea)[1], 'click');
+		jindo.$Fn(function(e) {updatePageForPaging (currentType, 'up', 'https://' + window.location.hostname, 'https://ssl.pstatic.net/static/nfinance'); }).attach(jindo.$$.getSingle('a', moreInfoArea), 'click');
+		jindo.$Fn(function(e) {updatePageForPaging (currentType, 'down', 'https://' + window.location.hostname, 'https://ssl.pstatic.net/static/nfinance'); }).attach(jindo.$$('a', moreInfoArea)[1], 'click');
+	}
+
+}).attach(document,"domready");
+
+function openMyitemNew(stockHost) {
+	var selectedElement = jindo.$Element(jindo.$$.getSingle(".tab_search"));
+	if (selectedElement != null) {
+		if (selectedElement.hasClass("search1")) {
+			document.location.href = stockHost + '/mystock/recentSearchItemList.naver';
+		} else {
+			document.location.href = stockHost + '/mystock/itemList.naver';
+		}
+	}
+}
+
+</script>
+
+	</div>
+	<div id="footer" >
+	<ul>
+		<li class="first">
+			<a href="https://new-m.pay.naver.com/member/terms-policy/naver-financial-service" onClick="clickcr(this, 'fot.service', '', '', event);" target="_blank">이용약관</a>
+		</li>
+		<li>
+			<a href="https://new-m.pay.naver.com/member/terms-policy/privacy" onClick="clickcr(this, 'fot.privacy', '', '', event);" target="_blank"><strong>개인정보처리방침</strong></a>
+		</li>
+		<li>
+			<a href="/rules.naver" onClick="clickcr(this, 'fot.policy', '', '', event);" target="_blank">게시판 운영원칙</a>
+		</li>
+		<li>
+			<a href="https://help.naver.com/alias/contents2/finance/finance_1.naver" onclick="clickcr(this, 'fot.help', '', '', event);" target="_blank">증권 고객센터</a>
+		</li>
+	</ul>
+	<p class="desc">
+		네이버파이낸셜(주)이 제공하는 금융 정보는 <a href="javascript:;" onclick="togglePanelFooter('footerPanel0');" class="desc_help">콘텐츠 제공업체</a>로부터 받는 투자 참고사항이며, 오류가 발생하거나 지연될 수 있습니다.<br/>
+		네이버파이낸셜(주)과 콘텐츠 제공업체는 제공된 정보에 의한 투자 결과에 법적인 책임을 지지 않습니다. 게시된 정보는 무단으로 배포할 수 없습니다.
+	</p>
+	<p class="info">국내 증시 기본 데이터는 한국거래소(KRX)에서 제공합니다.</p>
+	<div id="footerPanel0" class="provider_layer" style="display:none" tabindex="0" onblur="hidePannel('footerPanel0')">
+		<strong class="provider_layer__tit">네이버파이낸셜에 콘텐츠 제공</strong>
+		<div class="provider_layer__txt">
+			<strong>에프앤가이드</strong> 기업 및 재무정보<br>
+			<strong>KG제로인</strong> 해외 시세, 시장지표 정보<br>
+			<strong>한국예탁결제원</strong> 주주총회일, 전자투표 정보<br>
+			<strong>인포스탁</strong> 국내 테마 정보
+		</div>
+		<div class="provider_layer__info">
+			<strong class="provider_layer__tit">네이버에 콘텐츠 제공</strong>
+			<div class="provider_layer__txt">
+				<strong>코스콤</strong> 국내 시세 정보
+			</div>
+		</div>
+		<button type="button" class="button_close" onclick="hidePannel('footerPanel0')">
+			<img src="https://ssl.pstatic.net/static/nfinance/2022/footer_close.png" width="20" height="20" alt="닫기">
+		</button>
+	</div>
+	<address>
+		<a href="https://www.naverfincorp.com/" onClick="clickcr(this, 'fot.nhn', '', '', event);" target="_blank" class="logo"><img src="https://ssl.pstatic.net/static/nfinance/img/logo_financial.png" width="160" height="12" alt="NAVER FINANCIAL"></a>
+	</address>
+	
+	
+	
+</div>
+<script type="text/javascript">
+function isVisible(obj) {
+    if (obj == document) return true
+ 
+    if (!obj) return false
+    if (!obj.parentNode) return false
+    if (obj.style) {
+        if (obj.style.display == 'none') return false
+        if (obj.style.visibility == 'hidden') return false
+    }
+ 
+    if (window.getComputedStyle) {
+        var style = window.getComputedStyle(obj, "")
+        if (style.display == 'none') return false
+        if (style.visibility == 'hidden') return false
+    }
+ 
+    var style = obj.currentStyle
+    if (style) {
+        if (style['display'] == 'none') return false
+        if (style['visibility'] == 'hidden') return false
+    }
+ 
+    return isVisible(obj.parentNode)
+}
+
+function isChildOf(myobj, containerObj) {
+	while(myobj != undefined) {
+		if (myobj == document.body) {
+			break;
+		} 
+		if (myobj == containerObj) {
+			return true;
+		}
+		myobj = myobj.parentElement;
+	}
+	return false;	
+}
+
+function gnbLayerClose(e){
+	var target = e.target ? e.target : e.srcElement;
+	if (isVisible(document.getElementById('gnb_service_lyr')) || isVisible(document.getElementById('gnb_notice_lyr')) ||isVisible(document.getElementById('gnb_my_lyr')) ) {
+		if (!isChildOf(target, document.getElementById('gnb'))) {
+			gnbAllLayerClose();
+		}
+	}	
+}
+
+function showPannel(layerId){
+	var layer = jindo.$(layerId);
+	layer.style.display='block';
+
+	if (layerId == "summary_lyr") {
+		var layerHeight = jindo.$Element(layer).height();
+		jindo.$Element("summary_ifr").height(layerHeight);
+	}
+}
+
+function hidePannel(layerId){
+	var layer = jindo.$(layerId);
+	layer.style.display='none';
+}
+
+function togglePanelFooter(layerId) {
+	var elTargetLayer = jindo.$Element(jindo.$$.getSingle("#" + layerId));
+
+	if (elTargetLayer != null) {
+		if (elTargetLayer.visible()) {
+			hidePannel(layerId);
+		} else {
+			showPannel(layerId);
+		}
+	}
+}
+
+var isIE = (navigator.userAgent.toLowerCase().indexOf("msie")!=-1 && window.document.all) ? true:false;
+if (isIE) {
+	document.attachEvent('onmousedown', gnbLayerClose);
+} else {
+	window.addEventListener('mousedown', gnbLayerClose);
+}
+
+// _replaceNewsLink class 하위의 a 태그 조회 후 redirect
+jindo.$Fn(function () {
+	jindo.$$("._replaceNewsLink a").forEach(function(ele){
+		var urls = ele.href.split("?");
+		if (urls[0].indexOf("/news_read.naver") > 0 || urls[0].indexOf("/newsRead.naver") > 0) {
+			var param = jindo.$S(urls[1]).parseString();
+			var oid = param.office_id ? param.office_id : param.officeId;
+			var aid = param.article_id ? param.article_id : param.articleId;
+
+			ele.target = "_blank";
+			ele.href = jindo.$S("https://n.news.naver.com/mnews/article/%s/%s").format(oid, aid);
+		}
+	});
+}).attach(document, "domready");
+</script>
+
+</div>
+</body>
+</html>
