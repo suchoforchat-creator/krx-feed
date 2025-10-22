@@ -1,193 +1,131 @@
-# krx_scrape.py  v10
-# 목적: 프리게이트/아침브리핑에 필요한 핵심 지표 수집
-# 1차-잠정(네이버): KOSPI/KOSDAQ 지수+breadth, USD/KRW
-# 2차-잠정(폴백): DXY, WTI, Brent, Gold, BTC, UST10Y, KR10Y
-from playwright.sync_api import sync_playwright
-import pandas as pd, re, os, time, json, requests
+# -*- coding: utf-8 -*-
+import os, re, csv, time, datetime as dt
+import requests
 from bs4 import BeautifulSoup
-from datetime import datetime, timezone, timedelta
 
-KST = timezone(timedelta(hours=9))
-def now_kst(): return datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
-def ymd(): return datetime.now(KST).strftime("%Y%m%d")
+OUTDIR = "out"
+os.makedirs(OUTDIR, exist_ok=True)
+HTMLDIR = os.path.join(OUTDIR, "html"); os.makedirs(HTMLDIR, exist_ok=True)
 
-os.makedirs("out", exist_ok=True)
+UA = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+      "(KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 
-NUM = re.compile(r"[0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?")
-INT = re.compile(r"[0-9]{1,3}(?:,[0-9]{3})*")
+S = requests.Session()
+S.headers.update({"User-Agent": UA, "Accept-Language": "ko-KR,ko;q=0.9"})
 
-def num_in(text, lo=None, hi=None):
-    for m in NUM.findall(text):
-        v = float(m.replace(",",""))
-        if lo is not None and v < lo:  continue
-        if hi is not None and v > hi:  continue
-        return v
-    return None
+def now_kst():
+    return dt.datetime.utcnow() + dt.timedelta(hours=9)
 
-def int_in(text, lo=0, hi=20000):
-    m = INT.search(text or "")
-    if not m: return None
-    v = int(m.group(0).replace(",",""))
-    return v if lo <= v <= hi else None
+def save_html(name, text):
+    path = os.path.join(HTMLDIR, name)
+    with open(path, "w", encoding="utf-8") as f: f.write(text)
+    return path
 
-def slice_near(label, text, span=1200):
-    i = text.find(label)
-    if i == -1: return text
-    return text[max(0, i-120): i+span]
-
-# -------- 네이버(1차-잠정) --------
-def naver_index_and_breadth(ctx, code, label, lo, hi, ss_prefix):
-    url = f"https://finance.naver.com/sise/sise_index.nhn?code={code}"
-    p = ctx.new_page()
-    p.goto(url, timeout=120_000, wait_until="domcontentloaded")
-    p.wait_for_timeout(2500)
-    body = p.locator("body").inner_text()
-    html = p.content()
-    p.screenshot(path=f"out/{ss_prefix}.png", full_page=True)
-    with open(f"out/{ss_prefix}.txt","w",encoding="utf-8") as f: f.write(body)
-    with open(f"out/{ss_prefix}.html","w",encoding="utf-8") as f: f.write(html)
-    p.close()
-
-    seg = slice_near(label, body)
-    idx = num_in(seg, lo, hi)
-
-    # 등락수: 본문/HTML에서 ‘상승/보합/하락’ 또는 ▲ ─ ▼ 기호 인식
-    cand_segments = [
-        slice_near("등락", body, 800), slice_near("상승", body, 800),
-        slice_near("하락", body, 800), html
-    ]
-    adv = dec = unch = None
-    for s in cand_segments:
-        if adv is None:
-            m = re.search(r"(?:상승)[^\d]{0,6}([0-9,]{1,6})", s) or re.search(r"▲\s*([0-9,]{1,6})", s)
-            if m: adv = int(m.group(1).replace(",",""))
-        if unch is None:
-            m = re.search(r"(?:보합)[^\d]{0,6}([0-9,]{1,6})", s) or re.search(r"(?:■|━|─|＝)\s*([0-9,]{1,6})", s)
-            if m: unch = int(m.group(1).replace(",",""))
-        if dec is None:
-            m = re.search(r"(?:하락)[^\d]{0,6}([0-9,]{1,6})", s) or re.search(r"▼\s*([0-9,]{1,6})", s)
-            if m: dec = int(m.group(1).replace(",",""))
-
-    return idx, adv, dec, unch
-
-def naver_usdkrw(ctx):
-    # 네이버 환율 상세
-    url = "https://finance.naver.com/marketindex/exchangeDetail.nhn?marketindexCd=FX_USDKRW"
-    p = ctx.new_page()
-    p.goto(url, timeout=120_000, wait_until="domcontentloaded")
-    p.wait_for_timeout(2000)
-    p.screenshot(path="out/naver_usdkrw.png", full_page=True)
-    body = p.locator("body").inner_text()
-    html  = p.content()
-    with open("out/naver_usdkrw.txt","w",encoding="utf-8") as f: f.write(body)
-    with open("out/naver_usdkrw.html","w",encoding="utf-8") as f: f.write(html)
-    p.close()
-    # ".value"가 종종 비니 텍스트에서 근사 추출
-    seg = slice_near("미국 USD", body) + " " + slice_near("달러", body) + " " + html
-    val = num_in(seg, 500, 2000)
-    return val
-
-# -------- 2차-잠정 폴백(요약) --------
-HDR = {"User-Agent":"Mozilla/5.0"}
-
-def fetch_text(url):
-    r = requests.get(url, timeout=15, headers=HDR)
+def fetch(url, name_hint):
+    r = S.get(url, timeout=20)
     r.raise_for_status()
+    save_html(f"{name_hint}.html", r.text)
     return r.text
 
-def sec_dxy():
-    # MarketWatch 달러지수(지연)
+def to_float(num_str):
+    """쉼표 제거. 소수점 보존. 실패 시 None."""
+    if not num_str: return None
+    s = num_str.replace(",", "").strip()
     try:
-        html = fetch_text("https://www.marketwatch.com/investing/index/dxy")
-        v = num_in(html, 70, 120)
-        return v, "잠정(secondary): MarketWatch"
-    except: return None, "잠정(secondary): MarketWatch 실패"
+        return float(s)
+    except Exception:
+        return None
 
-def sec_wti():
-    try:
-        html = fetch_text("https://www.marketwatch.com/investing/future/crude%20oil%20-%20electronic")
-        v = num_in(html, 20, 200)
-        return v, "잠정(secondary): MarketWatch WTI"
-    except: return None, "잠정(secondary): MW WTI 실패"
+def find_first(text, patterns):
+    for p in patterns:
+        m = re.search(p, text, re.S)
+        if m:
+            return m.group(1)
+    return None
 
-def sec_brent():
-    try:
-        html = fetch_text("https://www.marketwatch.com/investing/future/brent%20crude%20oil")
-        v = num_in(html, 20, 200)
-        return v, "잠정(secondary): MarketWatch Brent"
-    except: return None, "잠정(secondary): MW Brent 실패"
+# --- KOSPI/KOSDAQ + 등락/보합 ---
+def parse_kospi_kosdaq():
+    srcs = {
+        "kospi": "https://stockpay.naver.com/domestic/index/KOSPI",
+        "kosdaq": "https://stockpay.naver.com/domestic/index/KOSDAQ",
+    }
+    out = {}
+    for key, url in srcs.items():
+        raw = fetch(url, f"naver_{key}")
+        # 지수값
+        val = find_first(raw, [
+            r"지수\s*</span>\s*<strong[^>]*>\s*([\d,]+\.\d+)",
+            r"([0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?)\s*</strong>\s*<span[^>]*>\s*전일대비"
+        ])
+        # 등락/보합
+        adv = find_first(raw, [r"상승\s*</em>\s*<strong[^>]*>\s*([\d,]+)"])
+        dec = find_first(raw, [r"하락\s*</em>\s*<strong[^>]*>\s*([\d,]+)"])
+        unch = find_first(raw, [r"보합\s*</em>\s*<strong[^>]*>\s*([\d,]+)"])
+        out[key] = {
+            "index": to_float(val),
+            "adv": int(adv.replace(",","")) if adv else None,
+            "dec": int(dec.replace(",","")) if dec else None,
+            "unch": int(unch.replace(",","")) if unch else None,
+            "source": "NAVER_PAY"
+        }
+    return out
 
-def sec_gold():
-    try:
-        html = fetch_text("https://www.marketwatch.com/investing/future/gold")
-        v = num_in(html, 500, 3000)
-        return v, "잠정(secondary): MarketWatch Gold"
-    except: return None, "잠정(secondary): MW Gold 실패"
+# --- USD/KRW, 금, 유가(두바이) ---
+def parse_usd_krw_gold_oil():
+    url = "https://stockpay.naver.com/market-index/USDKRW"
+    raw = fetch(url, "naver_usdkrw")
 
-def sec_btc():
-    try:
-        html = fetch_text("https://www.coindesk.com/price/bitcoin/")
-        v = num_in(html.replace(",", ""), 100, 2000000)  # USD
-        return v, "잠정(secondary): CoinDesk BTC"
-    except: return None, "잠정(secondary): CoinDesk 실패"
+    usdkrw = find_first(raw, [
+        r"USDKRW[^<]{0,200}?([0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?)\s*원",
+        r"환율[^<]{0,60}?([0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?)\s*원"
+    ])
 
-def sec_ust10y():
-    try:
-        html = fetch_text("https://www.cnbc.com/quotes/US10Y")
-        v = num_in(html, 0.0, 20.0)
-        return v, "잠정(secondary): CNBC US10Y(%)"
-    except: return None, "잠정(secondary): CNBC 실패"
+    gold = find_first(raw, [
+        r"국제\s*금[^0-9]{0,30}([0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?)\s*달러"
+    ])
 
-def sec_kr10y():
-    try:
-        html = fetch_text("https://www.investing.com/rates-bonds/south-korea-10-year-bond-yield")
-        v = num_in(html, 0.0, 20.0)
-        return v, "잠정(secondary): Investing KR10Y(%)"
-    except: return None, "잠정(secondary): Investing 실패"
+    dubai = find_first(raw, [
+        r"두바이유[^0-9]{0,30}([0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?)\s*달러"
+    ])
 
-# -------- 실행 --------
-with sync_playwright() as p:
-    b = p.chromium.launch(headless=True)
-    ctx = b.new_context()
-
-    # 1) KRX 1차-잠정 by Naver
-    kpi, kpi_up, kpi_dn, kpi_fl = naver_index_and_breadth(ctx, "KOSPI",  "코스피", 600, 5000, "naver_kospi")
-    kqd, kqd_up, kqd_dn, kqd_fl = naver_index_and_breadth(ctx, "KOSDAQ", "코스닥", 300, 2000, "naver_kosdaq")
-    usdkrw = naver_usdkrw(ctx)
-
-    # 2) 2차-잠정 폴백들
-    dxy,   src_dxy   = sec_dxy()
-    wti,   src_wti   = sec_wti()
-    brent, src_brent = sec_brent()
-    gold,  src_gold  = sec_gold()
-    btc,   src_btc   = sec_btc()
-    us10y, src_us10y = sec_ust10y()
-    kr10y, src_kr10y = sec_kr10y()
-
-    row = {
-        "time_kst": now_kst(),
-
-        # KRX(네이버) 1차-잠정
-        "kospi": kpi, "kospi_adv": kpi_up, "kospi_dec": kpi_dn, "kospi_unch": kpi_fl,
-        "kosdaq": kqd, "kosdaq_adv": kqd_up, "kosdaq_dec": kqd_dn, "kosdaq_unch": kqd_fl,
-        "usdkrw": usdkrw,
-
-        # 2차-잠정 자산
-        "dxy": dxy, "wti": wti, "brent": brent, "gold": gold, "btc_usd": btc,
-        "us10y_pct": us10y, "kr10y_pct": kr10y,
-
-        # 소스 라벨
-        "source_krx": "NAVER_SEC 1차-잠정",
-        "source_usdkrw": "NAVER_SEC 1차-잠정",
-        "source_dxy": src_dxy, "source_wti": src_wti, "source_brent": src_brent,
-        "source_gold": src_gold, "source_btc": src_btc,
-        "source_us10y": src_us10y, "source_kr10y": src_kr10y
+    return {
+        "usdk_rw": to_float(usdkrw),
+        "gold_usd": to_float(gold),
+        "dubai_usd": to_float(dubai),
+        "source": "NAVER_PAY"
     }
 
-    df = pd.DataFrame([row])
-    df.to_csv("out/latest.csv", index=False, encoding="utf-8-sig")
-    df.to_csv(f"out/brief_{ymd()}.csv", index=False, encoding="utf-8-sig")
-    with open("out/latest.json","w",encoding="utf-8") as f:
-        json.dump(row, f, ensure_ascii=False, indent=2)
+# --- 결과 저장 ---
+def write_csv(rows, fname):
+    path = os.path.join(OUTDIR, fname)
+    hdr = list(rows[0].keys())
+    with open(path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=hdr); w.writeheader()
+        for r in rows: w.writerow(r)
+    return path
 
-    print(df)
+def main():
+    t = now_kst().strftime("%Y-%m-%d %H:%M:%S")
+    kos = parse_kospi_kosdaq()
+    fx = parse_usd_krw_gold_oil()
+
+    row = {
+        "time_kst": t,
+        "source": "NAVER_PAY",
+        "kospi": kos["kospi"]["index"],
+        "kosdaq": kos["kosdaq"]["index"],
+        "adv": kos["kosdaq"]["adv"],  # 프리게이트/브리핑에 breadth로 사용
+        "dec": kos["kosdaq"]["dec"],
+        "unch": kos["kosdaq"]["unch"],
+        "usdkrw": fx["usdk_rw"],
+        "gold_usd": fx["gold_usd"],
+        "dubai_usd": fx["dubai_usd"]
+    }
+
+    daily = f"krx_{now_kst():%Y%m%d}.csv"
+    write_csv([row], daily)
+    write_csv([row], "latest.csv")
+    print("OK", row)
+
+if __name__ == "__main__":
+    main()
