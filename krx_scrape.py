@@ -1,4 +1,4 @@
-# krx_scrape.py v8  (KRX 우선, NAVER 폴백: 라벨근처+범위필터, 스크린샷/원문 덤프)
+# krx_scrape.py v9  (KRX 우선, NAVER 폴백 강화: breadth HTML/아이콘 파싱)
 from playwright.sync_api import sync_playwright
 import pandas as pd, re, os, time
 from datetime import datetime, timezone, timedelta
@@ -8,11 +8,10 @@ def now_kst(): return datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
 def ymd(): return datetime.now(KST).strftime("%Y%m%d")
 os.makedirs("out", exist_ok=True)
 
+NUM_RE = re.compile(r"[0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?")
+
 def valid(row):
     return isinstance(row.get("kospi"), (int,float)) and isinstance(row.get("kosdaq"), (int,float))
-
-# ---------- helpers ----------
-NUM_RE = re.compile(r"[0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?")
 
 def first_in_range(text, low, high):
     for m in NUM_RE.findall(text):
@@ -26,47 +25,57 @@ def slice_near(label, text, span=2000):
     if i == -1: return text
     return text[max(0, i-100): i+span]
 
-# ---------- NAVER fallback ----------
+# ---------------- NAVER fallback ----------------
 def parse_naver_with_pw(ctx):
     row = {"time_kst": now_kst(), "source": "NAVER_SEC 잠정(secondary)",
            "kospi": None, "kosdaq": None, "adv": None, "dec": None, "unch": None}
 
-    def load(url, ss_path, txt_path):
+    def load(url, ss_path, txt_path, html_path):
         p = ctx.new_page()
         p.goto(url, timeout=120_000, wait_until="domcontentloaded")
         p.wait_for_timeout(2500)
         p.screenshot(path=ss_path, full_page=True)
         body = p.locator("body").inner_text()
+        html = p.content()
         with open(txt_path, "w", encoding="utf-8") as f: f.write(body)
+        with open(html_path,"w", encoding="utf-8") as f: f.write(html)
         p.close()
-        return body
+        return body, html
 
-    body_k = load("https://finance.naver.com/sise/sise_index.nhn?code=KOSPI",
-                  "out/naver_kospi.png",  "out/naver_kospi.txt")
-    body_q = load("https://finance.naver.com/sise/sise_index.nhn?code=KOSDAQ",
-                  "out/naver_kosdaq.png", "out/naver_kosdaq.txt")
+    b_k, h_k = load("https://finance.naver.com/sise/sise_index.nhn?code=KOSPI",
+                    "out/naver_kospi.png","out/naver_kospi.txt","out/naver_kospi.html")
+    b_q, h_q = load("https://finance.naver.com/sise/sise_index.nhn?code=KOSDAQ",
+                    "out/naver_kosdaq.png","out/naver_kosdaq.txt","out/naver_kosdaq.html")
 
-    # 지수: 라벨 주변에서 합리적 범위의 첫 숫자만 채택
-    seg_k = slice_near("코스피", body_k)
-    seg_q = slice_near("코스닥", body_q)
-    row["kospi"]  = first_in_range(seg_k, 600, 5000)   # KOSPI 필터
-    row["kosdaq"] = first_in_range(seg_q, 300, 2000)   # KOSDAQ 필터
+    # 지수: 라벨 주변 + 값 범위 필터
+    row["kospi"]  = first_in_range(slice_near("코스피", b_k), 600, 5000)
+    row["kosdaq"] = first_in_range(slice_near("코스닥", b_q), 300, 2000)
 
-    # 등락 종목수
-    def breadth(txt):
-        seg = slice_near("등락", txt, span=600)
-        up  = re.search(r"상승\s*([0-9,]+)", seg)
-        flt = re.search(r"보합\s*([0-9,]+)", seg)
-        dn  = re.search(r"하락\s*([0-9,]+)", seg)
-        adv  = int(up.group(1).replace(",",""))  if up  else None
-        unch = int(flt.group(1).replace(",","")) if flt else None
-        dec  = int(dn.group(1).replace(",",""))  if dn  else None
-        return adv, dec, unch
+    # 등락수: 본문/HTML 모두에서 '상승/보합/하락' 또는 아이콘(▲ ■ ▷ ▷, ▼, ㅡ 등) 인식
+    def breadth(text, html):
+        segs = [
+            slice_near("등락", text, 800),
+            slice_near("상승", text, 800),
+            slice_near("하락", text, 800),
+            html
+        ]
+        up = dn = fl = None
+        for s in segs:
+            if up is None:
+                m = re.search(r"(?:상승)[^\d]{0,6}([0-9,]{1,6})", s) or re.search(r"▲\s*([0-9,]{1,6})", s)
+                if m: up = int(m.group(1).replace(",",""))
+            if fl is None:
+                m = re.search(r"(?:보합)[^\d]{0,6}([0-9,]{1,6})", s) or re.search(r"(?:■|━|─|＝)\s*([0-9,]{1,6})", s)
+                if m: fl = int(m.group(1).replace(",",""))
+            if dn is None:
+                m = re.search(r"(?:하락)[^\d]{0,6}([0-9,]{1,6})", s) or re.search(r"▼\s*([0-9,]{1,6})", s)
+                if m: dn = int(m.group(1).replace(",",""))
+        return up, dn, fl
 
-    row["adv"], row["dec"], row["unch"] = breadth(body_k)
+    row["adv"], row["dec"], row["unch"] = breadth(b_k, h_k)
     return row
 
-# ---------- KRX ----------
+# ----------------- KRX primary ------------------
 def first_num(locator, low=None, high=None, limit=120):
     n = locator.count()
     for i in range(min(n, limit)):
@@ -121,7 +130,7 @@ def scrape_krx(ctx):
     return {"time_kst": now_kst(), "source": "KRX_DOM",
             "kospi": kospi, "kosdaq": kosdaq, "adv": adv, "dec": dec, "unch": unch}
 
-# ---------- MAIN ----------
+# ----------------- MAIN ------------------------
 with sync_playwright() as p:
     b = p.chromium.launch(headless=True)
     ctx = b.new_context()
@@ -142,4 +151,3 @@ with sync_playwright() as p:
     df.to_csv("out/latest.csv", index=False, encoding="utf-8-sig")
     df.to_csv(f"out/krx_{ymd()}.csv", index=False, encoding="utf-8-sig")
     print(df)
-
