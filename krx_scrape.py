@@ -1,4 +1,4 @@
-# krx_scrape.py  v6 (KRX 우선, 실패시 NAVER 폴백+스크린샷, 값검증)
+# krx_scrape.py  v7  (KRX 우선, NAVER 폴백: 텍스트 정규식 파싱+스크린샷)
 from playwright.sync_api import sync_playwright
 import pandas as pd, re, os, time
 from datetime import datetime, timezone, timedelta
@@ -8,49 +8,63 @@ def now_kst(): return datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
 def ymd(): return datetime.now(KST).strftime("%Y%m%d")
 os.makedirs("out", exist_ok=True)
 
-def to_float(s):
-    m = re.findall(r"[0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]+)?", s)
-    return float(m[0].replace(",","")) if m else None
-def to_int(s):
-    m = re.findall(r"[0-9]{1,3}(?:,[0-9]{3})*", s)
-    return int(m[0].replace(",","")) if m else None
+def to_float_num(s):
+    m = re.search(r"[0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?", s)
+    return float(m.group(0).replace(",", "")) if m else None
+def to_int_num(s):
+    m = re.search(r"[0-9]{1,3}(?:,[0-9]{3})*", s)
+    return int(m.group(0).replace(",", "")) if m else None
+
 def valid(row):
     return isinstance(row.get("kospi"), (int,float)) and isinstance(row.get("kosdaq"), (int,float))
 
-# ---------- NAVER 폴백(Playwright 사용) ----------
+# ---------- NAVER 폴백(본문 텍스트 정규식) ----------
 def parse_naver_with_pw(ctx):
     row = {"time_kst": now_kst(), "source": "NAVER_SEC 잠정(secondary)",
            "kospi": None, "kosdaq": None, "adv": None, "dec": None, "unch": None}
-    p1 = ctx.new_page()
-    p1.goto("https://finance.naver.com/sise/sise_index.nhn?code=KOSPI",
-            timeout=120_000, wait_until="domcontentloaded")
-    p1.wait_for_timeout(2500)
-    p1.screenshot(path="out/naver_kospi.png", full_page=True)
-    # 지수
-    try:
-        v = p1.locator(".no_today .blind").first.inner_text().strip()
-        row["kospi"] = to_float(v)
-    except: pass
-    # 폭(상승/보합/하락) – 텍스트에서 정규식
-    body_txt = p1.locator("body").inner_text()
-    up  = re.search(r"상승\s*([0-9,]+)\s*종목", body_txt)
-    flt = re.search(r"보합\s*([0-9,]+)\s*종목", body_txt)
-    dn  = re.search(r"하락\s*([0-9,]+)\s*종목", body_txt)
-    row["adv"]  = int(up.group(1).replace(",",""))  if up  else None
-    row["unch"] = int(flt.group(1).replace(",","")) if flt else None
-    row["dec"]  = int(dn.group(1).replace(",",""))  if dn  else None
-    p1.close()
 
-    p2 = ctx.new_page()
-    p2.goto("https://finance.naver.com/sise/sise_index.nhn?code=KOSDAQ",
-            timeout=120_000, wait_until="domcontentloaded")
-    p2.wait_for_timeout(2500)
-    p2.screenshot(path="out/naver_kosdaq.png", full_page=True)
-    try:
-        v = p2.locator(".no_today .blind").first.inner_text().strip()
-        row["kosdaq"] = to_float(v)
-    except: pass
-    p2.close()
+    def extract_from_page(url, ss_path):
+        p = ctx.new_page()
+        p.goto(url, timeout=120_000, wait_until="domcontentloaded")
+        p.wait_for_timeout(2500)
+        p.screenshot(path=ss_path, full_page=True)
+        body = p.locator("body").inner_text()
+        p.close()
+        return body
+
+    body_k = extract_from_page(
+        "https://finance.naver.com/sise/sise_index.nhn?code=KOSPI",
+        "out/naver_kospi.png"
+    )
+    body_q = extract_from_page(
+        "https://finance.naver.com/sise/sise_index.nhn?code=KOSDAQ",
+        "out/naver_kosdaq.png"
+    )
+
+    # 코스피/코스닥 지수: "코스피 3,883.68 ▲ ..." 형태를 직접 매칭
+    m_k = re.search(r"코스피[^\d]*([0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?)", body_k)
+    m_q = re.search(r"코스닥[^\d]*([0-9]{1,3}(?:,[0-9]{3})*(?:\.\d+)?)", body_q)
+    row["kospi"]  = float(m_k.group(1).replace(",", "")) if m_k else None
+    row["kosdaq"] = float(m_q.group(1).replace(",", "")) if m_q else None
+
+    # 등락 종목수: "등락 ... 상승 123 보합 45 하락 67" 근처 300자 범위에서 추출
+    def breadth_from_text(txt):
+        seg = ""
+        pos = txt.find("등락")
+        if pos != -1:
+            seg = txt[pos:pos+400]
+        else:
+            seg = txt  # 최후 수단
+        up  = re.search(r"상승\s*([0-9,]+)(?:\s*종목)?", seg)
+        flt = re.search(r"보합\s*([0-9,]+)(?:\s*종목)?", seg)
+        dn  = re.search(r"하락\s*([0-9,]+)(?:\s*종목)?", seg)
+        adv  = int(up.group(1).replace(",", ""))  if up  else None
+        unch = int(flt.group(1).replace(",", "")) if flt else None
+        dec  = int(dn.group(1).replace(",", ""))  if dn  else None
+        return adv, dec, unch
+
+    adv, dec, unch = breadth_from_text(body_k)
+    row["adv"], row["dec"], row["unch"] = adv, dec, unch
     return row
 
 # ---------- KRX ----------
@@ -58,38 +72,29 @@ def first_num(locator, low=None, high=None, limit=120):
     n = locator.count()
     for i in range(min(n, limit)):
         try:
-            v = to_float(locator.nth(i).inner_text().strip())
+            v = to_float_num(locator.nth(i).inner_text())
         except:
             v = None
-        if v is None: 
-            continue
-        if low is not None and v < low: 
-            continue
-        if high is not None and v > high: 
-            continue
+        if v is None: continue
+        if low is not None and v < low: continue
+        if high is not None and v > high: continue
         return v
     return None
 
 def grab_index(fr, label, low, high):
     lab = fr.locator(f"xpath=//*[contains(normalize-space(.), '{label}')]").first
-    if lab.count()==0:
-        return None
+    if lab.count()==0: return None
     anc = lab.locator("xpath=ancestor::*[position()<=5]").first
     cand = anc.locator("xpath=.//span|.//strong|.//em|.//*[contains(@class,'num') or contains(@class,'point')]")
     return first_num(cand, low, high)
 
 def grab_breadth(fr, word):
     w = fr.locator(f"xpath=//*[contains(normalize-space(.), '{word}')]").first
-    if w.count()==0:
-        return None
+    if w.count()==0: return None
     near = w.locator("xpath=following::*[self::span or self::strong or self::em or contains(@class,'num')][position()<=12]")
-    n = near.count()
-    for i in range(n):
-        s = near.nth(i).inner_text()
-        if re.search(r"\d", s):
-            v = to_int(s)
-            if v and 0 < v < 20000:
-                return v
+    for i in range(near.count()):
+        v = to_int_num(near.nth(i).inner_text())
+        if v and 0 < v < 20000: return v
     return None
 
 def scrape_krx(ctx):
@@ -119,17 +124,14 @@ with sync_playwright() as p:
     ctx = b.new_context()
 
     row = None
-    # KRX 2회 재시도
-    for i in range(2):
+    for _ in range(2):
         try:
             row = scrape_krx(ctx)
-            if valid(row):
-                break
-            else:
-                raise ValueError("KRX values empty")
+            if valid(row): break
+            else: raise ValueError("KRX values empty")
         except Exception:
             time.sleep(60)
-    # 폴백
+
     if row is None or not valid(row):
         row = parse_naver_with_pw(ctx)
 
