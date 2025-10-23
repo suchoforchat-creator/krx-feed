@@ -1,0 +1,31 @@
+name: data-pipeline
+on:
+  schedule:
+    - cron: '30 22 * * 1-5'   # 07:30 KST
+    - cron: '00 08 * * 1-5'   # 17:00 KST
+  workflow_dispatch:
+jobs:
+  collect_0730:
+    if: github.event.schedule == '30 22 * * 1-5'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -r requirements.txt
+      - run: python pipeline.py --phase 0730 --tz Asia/Seoul
+      - run: git config user.name 'bot' && git config user.email 'bot@users.noreply.github.com'
+      - run: git add out && git commit -m "0730 snapshot $(date -u +%F)" || echo "no changes"
+      - run: git push
+  finalize_1700:
+    if: github.event.schedule == '00 08 * * 1-5'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: '3.11' }
+      - run: pip install -r requirements.txt
+      - run: python pipeline.py --phase 1700 --tz Asia/Seoul --reconcile
+      - run: git config user.name 'bot' && git config user.email 'bot@users.noreply.github.com'
+      - run: git add out && git commit -m "1700 final $(date -u +%F)" || echo "no changes"
+      - run: git push
