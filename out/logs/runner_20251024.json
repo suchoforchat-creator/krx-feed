@@ -1,7 +1,7 @@
 [
   {
-    "phase": "1700",
-    "ts_kst": "2025-10-24 14:28",
+    "phase": "0730",
+    "ts_kst": "2025-10-24 15:05",
     "status": "started"
   },
   {
@@ -20,9 +20,9 @@
     "count": 2
   },
   {
-    "source": "rates",
+    "source": "krx",
     "status": "ok",
-    "count": 11
+    "count": 13
   },
   {
     "source": "commod",
@@ -30,16 +30,16 @@
     "count": 8
   },
   {
-    "source": "krx",
+    "source": "rates",
     "status": "ok",
-    "count": 13
+    "count": 11
   },
   {
     "metric": "coverage",
     "value": 1.0
   },
   {
-    "reconcile": true,
+    "reconcile": false,
     "rows": 53
   },
   {
