@@ -1,0 +1,33 @@
+{
+  "KOSPI": {
+    "ms": "CLOSE",
+    "nv": 394159,
+    "cv": 9603,
+    "cr": 2.5,
+    "rf": "2",
+    "ov": 389323,
+    "hv": 395107,
+    "lv": 388664,
+    "aq": 419024,
+    "aa": 17613960,
+    "bs": 0,
+    "cd": "KOSPI"
+  },
+  "KOSDAQ": {
+    "ms": "CLOSE",
+    "nv": 88308,
+    "cv": 1105,
+    "cr": 1.27,
+    "rf": "2",
+    "ov": 88061,
+    "hv": 88406,
+    "lv": 87638,
+    "aq": 943673,
+    "aa": 8845676,
+    "bs": 0,
+    "cd": "KOSDAQ"
+  },
+  "breadth": {
+    "note": "KRX breadth endpoints require credentials; emitting placeholders"
+  }
+}
