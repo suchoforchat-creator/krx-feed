@@ -1,13 +1,13 @@
 [
   {
-    "phase": "1700",
-    "ts_kst": "2025-10-24 07:44",
+    "phase": "0730",
+    "ts_kst": "2025-10-24 14:24",
     "status": "started"
   },
   {
-    "source": "commod",
+    "source": "global_eq",
     "status": "ok",
-    "count": 8
+    "count": 13
   },
   {
     "source": "fx",
@@ -15,9 +15,9 @@
     "count": 6
   },
   {
-    "source": "global_eq",
+    "source": "commod",
     "status": "ok",
-    "count": 13
+    "count": 8
   },
   {
     "source": "rates",
@@ -39,7 +39,7 @@
     "value": 1.0
   },
   {
-    "reconcile": true,
+    "reconcile": false,
     "rows": 53
   },
   {
