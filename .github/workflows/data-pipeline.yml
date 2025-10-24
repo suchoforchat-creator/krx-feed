@@ -32,7 +32,7 @@ jobs:
           }
       - run: git push
   finalize_1700:
-    #if: github.event_name == 'workflow_dispatch' || github.event.schedule == '00 08 * * 1-5'
+    if: github.event_name == 'workflow_dispatch' || github.event.schedule == '00 08 * * 1-5'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -44,7 +44,7 @@ jobs:
       - run: python pipeline.py --phase 1700 --tz Asia/Seoul --reconcile
       - run: python update_history.py --latest out/latest.csv --history out/history.csv --days 90
       - run: git config user.name 'bot' && git config user.email 'bot@users.noreply.github.com'
-      - run: git add out/history.csv out/daily/index.csv || true
+      - run: git add out || true
       - name: Commit history snapshot
         run: |
           stamp=$(TZ=Asia/Seoul date '+%Y-%m-%d %H:%M:%S KST')
