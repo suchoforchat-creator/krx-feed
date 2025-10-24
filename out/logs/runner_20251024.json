@@ -1,7 +1,7 @@
 [
   {
-    "phase": "0730",
-    "ts_kst": "2025-10-24 14:24",
+    "phase": "1700",
+    "ts_kst": "2025-10-24 14:28",
     "status": "started"
   },
   {
@@ -15,9 +15,9 @@
     "count": 6
   },
   {
-    "source": "commod",
+    "source": "crypto",
     "status": "ok",
-    "count": 8
+    "count": 2
   },
   {
     "source": "rates",
@@ -25,9 +25,9 @@
     "count": 11
   },
   {
-    "source": "crypto",
+    "source": "commod",
     "status": "ok",
-    "count": 2
+    "count": 8
   },
   {
     "source": "krx",
@@ -39,7 +39,7 @@
     "value": 1.0
   },
   {
-    "reconcile": false,
+    "reconcile": true,
     "rows": 53
   },
   {
