@@ -1,18 +1,13 @@
 [
   {
-    "phase": "0730",
-    "ts_kst": "2025-10-24 15:31",
+    "phase": "1700",
+    "ts_kst": "2025-10-24 15:33",
     "status": "started"
   },
   {
     "source": "global_eq",
     "status": "ok",
     "count": 13
-  },
-  {
-    "source": "commod",
-    "status": "ok",
-    "count": 8
   },
   {
     "source": "fx",
@@ -30,6 +25,11 @@
     "count": 2
   },
   {
+    "source": "commod",
+    "status": "ok",
+    "count": 8
+  },
+  {
     "source": "krx",
     "status": "ok",
     "count": 13
@@ -39,7 +39,7 @@
     "value": 1.0
   },
   {
-    "reconcile": false,
+    "reconcile": true,
     "rows": 53
   },
   {
