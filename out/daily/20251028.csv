@@ -1,54 +1,54 @@
 ts_kst,asset,key,value,unit,window,change_abs,change_pct,source,quality,url,notes
-2025-10-28 11:22,2s10s,spread,-16.294284020348826,bp,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^TNX,잠정(secondary)
-2025-10-28 11:22,BTC,corr_nq_20d,0.15752194525966032,corr,20D,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^NDX,잠정(secondary)
-2025-10-28 11:22,BTC,price,114139.4296875,USD,1D,-333.015625,-0.0029091334957587023,Yahoo Finance,secondary,https://finance.yahoo.com/quote/BTC-USD,잠정(secondary)
-2025-10-28 11:22,Brent,curve_M1,64.94999694824219,USD/bbl,M1,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/BZ=F,잠정(secondary)
-2025-10-28 11:22,Brent,curve_M12,64.94999694824219,USD/bbl,M12,,,synthetic-fallback,secondary,https://finance.yahoo.com/quote/B3=F,fallback: ValueError; derived from front
-2025-10-28 11:22,Brent,curve_M2,0.6547799706459045,USD/bbl,M2,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/B0=F,잠정(secondary)
-2025-10-28 11:22,Brent,curve_M3,64.94999694824219,USD/bbl,M3,,,synthetic-fallback,secondary,https://finance.yahoo.com/quote/B1=F,fallback: ValueError; derived from front
-2025-10-28 11:22,Brent,curve_M6,64.94999694824219,USD/bbl,M6,,,synthetic-fallback,secondary,https://finance.yahoo.com/quote/B2=F,fallback: ValueError; derived from front
-2025-10-28 11:22,Copper,price,5.176000118255615,USD/lb,1D,0.08249998092651367,0.016197109787411238,Yahoo Finance,secondary,https://finance.yahoo.com/quote/HG=F,잠정(secondary)
-2025-10-28 11:22,DXY,corr_kospi_20d,0.4925524312985111,corr,20D,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/DX-Y.NYB,잠정(secondary)
-2025-10-28 11:22,DXY,idx,98.65699768066406,idx,1D,-0.292999267578125,-0.00296108414971841,Yahoo Finance,secondary,https://finance.yahoo.com/quote/DX-Y.NYB,잠정(secondary)
-2025-10-28 11:22,ES,basis,0.004776593272543083,ratio,spot,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/ES=F,잠정(secondary)
-2025-10-28 11:22,ES,price,6908.0,pt,1D,81.0,0.011864655046140326,Yahoo Finance,secondary,https://finance.yahoo.com/quote/ES=F,잠정(secondary)
-2025-10-28 11:22,Gold,price,1962.1274460572938,USD/oz,1D,-0.21448110596247716,-0.0001092985391554718,synthetic-fallback,secondary,https://finance.yahoo.com/quote/GC=F,fallback: OperationalError
-2025-10-28 11:22,KOSDAQ,advance,13.0,issues,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com,
-2025-10-28 11:22,KOSDAQ,decline,6.0,issues,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com,
-2025-10-28 11:22,KOSDAQ,idx,903.52001953125,pt,1D,0.82000732421875,0.0009083940546471201,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^KQ11,잠정(secondary)
-2025-10-28 11:22,KOSDAQ,unchanged,0.0,issues,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com,
-2025-10-28 11:22,KOSPI,advance,6.0,issues,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com,
-2025-10-28 11:22,KOSPI,decline,14.0,issues,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com,
-2025-10-28 11:22,KOSPI,idx,4002.360107421875,pt,1D,-40.469970703125,-0.010010307116814152,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^KS11,잠정(secondary)
-2025-10-28 11:22,KOSPI,limit_down,0.0,issues,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com,
-2025-10-28 11:22,KOSPI,limit_up,0.0,issues,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com,
-2025-10-28 11:22,KOSPI,trading_value,3.865261257,trn KRW,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com,
-2025-10-28 11:22,KOSPI,trin,1.3517051942777596,ratio,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com,components-derived
-2025-10-28 11:22,KOSPI,unchanged,0.0,issues,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com,
-2025-10-28 11:22,KOSPI200,hv30,0.23281452099805755,vol,30D,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^KS200,잠정(secondary)
-2025-10-28 11:22,KR10Y,change_1d_bp,-0.042182065299423144,bp,1D,,,synthetic-fallback,secondary,https://finance.yahoo.com/quote/^KRWGB10Y,fallback: ValueError
-2025-10-28 11:22,KR10Y,yield,3.559942819222653,pct,1D,-0.00042182065299423144,,synthetic-fallback,secondary,https://finance.yahoo.com/quote/^KRWGB10Y,fallback: ValueError
-2025-10-28 11:22,KR3Y,change_1d_bp,-0.03374565223950299,bp,1D,,,synthetic-fallback,secondary,https://finance.yahoo.com/quote/^KRWGB3Y,fallback: ValueError
-2025-10-28 11:22,KR3Y,yield,3.3679542553781228,pct,1D,-0.0003374565223950299,,synthetic-fallback,secondary,https://finance.yahoo.com/quote/^KRWGB3Y,fallback: ValueError
-2025-10-28 11:22,NDX,return_1m,0.053775271758558896,pct,1M,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^NDX,잠정(secondary)
-2025-10-28 11:22,NDX,return_1w,0.027068562162091636,pct,1W,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^NDX,잠정(secondary)
-2025-10-28 11:22,NDX,spot,25821.55078125,pt,1D,463.390625,0.018273826734460014,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^NDX,잠정(secondary)
-2025-10-28 11:22,NQ,basis,0.005962043877774697,ratio,spot,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/NQ=F,잠정(secondary)
-2025-10-28 11:22,NQ,price,25975.5,pt,1D,466.25,0.018277683585366092,Yahoo Finance,secondary,https://finance.yahoo.com/quote/NQ=F,잠정(secondary)
-2025-10-28 11:22,S&P500,return_1m,0.0348390135215324,pct,1M,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^GSPC,잠정(secondary)
-2025-10-28 11:22,S&P500,return_1w,0.020791027919869087,pct,1W,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^GSPC,잠정(secondary)
-2025-10-28 11:22,S&P500,spot,6875.16015625,pt,1D,83.47021484375,0.012290050865671162,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^GSPC,잠정(secondary)
-2025-10-28 11:22,SOX,return_1m,0.1368633401023578,pct,1M,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^SOX,잠정(secondary)
-2025-10-28 11:22,SOX,return_1w,0.041096437363644434,pct,1W,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^SOX,잠정(secondary)
-2025-10-28 11:22,SOX,spot,7167.97998046875,pt,1D,191.0400390625,0.027381637317633923,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^SOX,잠정(secondary)
-2025-10-28 11:22,TIPS10Y,change_1d_bp,-2.9998779296875,bp,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/TIP,잠정(secondary)
-2025-10-28 11:22,TIPS10Y,yield,111.94000244140625,pct,1D,-0.029998779296875,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/TIP,잠정(secondary)
-2025-10-28 11:22,USD/KRW,corr_kospi_20d,0.8044295435546023,corr,20D,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/KRW=X,잠정(secondary)
-2025-10-28 11:22,USD/KRW,spot,1434.6099853515625,KRW,1D,-2.3599853515625,-0.0016423344952767062,Yahoo Finance,secondary,https://finance.yahoo.com/quote/KRW=X,잠정(secondary)
-2025-10-28 11:22,USD/KRW,vol_1d,0.0,vol,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/KRW=X,잠정(secondary)
-2025-10-28 11:22,USD/KRW,vol_5d,0.0529559735306416,vol,5D,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/KRW=X,잠정(secondary)
-2025-10-28 11:22,UST10Y,change_1d_bp,0.0,bp,1D,,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^TNX,잠정(secondary)
-2025-10-28 11:22,UST10Y,yield,3.996999979019165,pct,1D,0.0,,Yahoo Finance,secondary,https://finance.yahoo.com/quote/^TNX,잠정(secondary)
-2025-10-28 11:22,UST2Y,change_1d_bp,-0.04218206529946755,bp,1D,,,synthetic-fallback,secondary,https://finance.yahoo.com/quote/^UST2Y,fallback: ValueError
-2025-10-28 11:22,UST2Y,yield,4.159942819222653,pct,1D,-0.0004218206529946755,,synthetic-fallback,secondary,https://finance.yahoo.com/quote/^UST2Y,fallback: ValueError
-2025-10-28 11:22,WTI,price,61.369998931884766,USD/bbl,1D,-0.13000106811523438,-0.0021138385059387703,Yahoo Finance,secondary,https://finance.yahoo.com/quote/CL=F,잠정(secondary)
+2025-10-28 17:50,2s10s,spread,-16.294284020348826,bp,1D,,,Yahoo Finance,final,https://finance.yahoo.com/quote/^TNX,잠정(secondary)
+2025-10-28 17:50,BTC,corr_nq_20d,0.275348497021179,corr,20D,,,Yahoo Finance,final,https://finance.yahoo.com/quote/^NDX,revised
+2025-10-28 17:50,BTC,price,113942.6953125,USD,1D,-176.6328125,-0.0015477905049224106,Yahoo Finance,final,https://finance.yahoo.com/quote/BTC-USD,revised
+2025-10-28 17:50,Brent,curve_M1,63.75,USD/bbl,M1,,,Yahoo Finance,final,https://finance.yahoo.com/quote/BZ=F,revised
+2025-10-28 17:50,Brent,curve_M12,63.75,USD/bbl,M12,,,synthetic-fallback,final,https://finance.yahoo.com/quote/B3=F,revised
+2025-10-28 17:50,Brent,curve_M2,0.6547799706459045,USD/bbl,M2,,,Yahoo Finance,final,https://finance.yahoo.com/quote/B0=F,잠정(secondary)
+2025-10-28 17:50,Brent,curve_M3,63.75,USD/bbl,M3,,,synthetic-fallback,final,https://finance.yahoo.com/quote/B1=F,revised
+2025-10-28 17:50,Brent,curve_M6,63.75,USD/bbl,M6,,,synthetic-fallback,final,https://finance.yahoo.com/quote/B2=F,revised
+2025-10-28 17:50,Copper,price,5.09499979019165,USD/lb,1D,-0.04550027847290039,-0.008851333112562509,Yahoo Finance,final,https://finance.yahoo.com/quote/HG=F,잠정(secondary)
+2025-10-28 17:50,DXY,corr_kospi_20d,0.37429821674231023,corr,20D,,,Yahoo Finance,final,https://finance.yahoo.com/quote/DX-Y.NYB,revised
+2025-10-28 17:50,DXY,idx,98.68800354003906,idx,1D,-0.0919952392578125,-0.0009313144401161262,Yahoo Finance,final,https://finance.yahoo.com/quote/DX-Y.NYB,잠정(secondary)
+2025-10-28 17:50,ES,basis,0.0039038863299207236,ratio,spot,,,Yahoo Finance,final,https://finance.yahoo.com/quote/ES=F,잠정(secondary)
+2025-10-28 17:50,ES,price,6902.0,pt,1D,-6.25,-0.0009047153765425397,Yahoo Finance,final,https://finance.yahoo.com/quote/ES=F,revised
+2025-10-28 17:50,Gold,price,3922.199951171875,USD/oz,1D,-79.699951171875,-0.019915528403196187,Yahoo Finance,final,https://finance.yahoo.com/quote/GC=F,revised
+2025-10-28 17:50,KOSDAQ,advance,13.0,issues,1D,,,Yahoo Finance,final,https://finance.yahoo.com,
+2025-10-28 17:50,KOSDAQ,decline,6.0,issues,1D,,,Yahoo Finance,final,https://finance.yahoo.com,
+2025-10-28 17:50,KOSDAQ,idx,903.2999877929688,pt,1D,0.5999755859375,0.0006646455941333228,Yahoo Finance,final,https://finance.yahoo.com/quote/^KQ11,잠정(secondary)
+2025-10-28 17:50,KOSDAQ,unchanged,0.0,issues,1D,,,Yahoo Finance,final,https://finance.yahoo.com,
+2025-10-28 17:50,KOSPI,advance,9.0,issues,1D,,,Yahoo Finance,final,https://finance.yahoo.com,revised
+2025-10-28 17:50,KOSPI,decline,9.0,issues,1D,,,Yahoo Finance,final,https://finance.yahoo.com,revised
+2025-10-28 17:50,KOSPI,idx,4010.409912109375,pt,1D,-32.420166015625,-0.008019176020047064,Yahoo Finance,final,https://finance.yahoo.com/quote/^KS11,revised
+2025-10-28 17:50,KOSPI,limit_down,0.0,issues,1D,,,Yahoo Finance,final,https://finance.yahoo.com,
+2025-10-28 17:50,KOSPI,limit_up,0.0,issues,1D,,,Yahoo Finance,final,https://finance.yahoo.com,
+2025-10-28 17:50,KOSPI,trading_value,8.4781692606,trn KRW,1D,,,Yahoo Finance,final,https://finance.yahoo.com,revised
+2025-10-28 17:50,KOSPI,trin,2.637255378479239,ratio,1D,,,Yahoo Finance,final,https://finance.yahoo.com,revised
+2025-10-28 17:50,KOSPI,unchanged,2.0,issues,1D,,,Yahoo Finance,final,https://finance.yahoo.com,revised
+2025-10-28 17:50,KOSPI200,hv30,0.23211321475271265,vol,30D,,,Yahoo Finance,final,https://finance.yahoo.com/quote/^KS200,잠정(secondary)
+2025-10-28 17:50,KR10Y,change_1d_bp,-0.042182065299423144,bp,1D,,,synthetic-fallback,final,https://finance.yahoo.com/quote/^KRWGB10Y,fallback: ValueError
+2025-10-28 17:50,KR10Y,yield,3.559942819222653,pct,1D,-0.00042182065299423144,,synthetic-fallback,final,https://finance.yahoo.com/quote/^KRWGB10Y,fallback: ValueError
+2025-10-28 17:50,KR3Y,change_1d_bp,-0.03374565223950299,bp,1D,,,synthetic-fallback,final,https://finance.yahoo.com/quote/^KRWGB3Y,fallback: ValueError
+2025-10-28 17:50,KR3Y,yield,3.3679542553781228,pct,1D,-0.0003374565223950299,,synthetic-fallback,final,https://finance.yahoo.com/quote/^KRWGB3Y,fallback: ValueError
+2025-10-28 17:50,NDX,return_1m,0.053775271758558896,pct,1M,,,Yahoo Finance,final,https://finance.yahoo.com/quote/^NDX,잠정(secondary)
+2025-10-28 17:50,NDX,return_1w,0.027068562162091636,pct,1W,,,Yahoo Finance,final,https://finance.yahoo.com/quote/^NDX,잠정(secondary)
+2025-10-28 17:50,NDX,spot,25821.55078125,pt,1D,463.390625,0.018273826734460014,Yahoo Finance,final,https://finance.yahoo.com/quote/^NDX,잠정(secondary)
+2025-10-28 17:50,NQ,basis,0.00488736016744734,ratio,spot,,,Yahoo Finance,final,https://finance.yahoo.com/quote/NQ=F,잠정(secondary)
+2025-10-28 17:50,NQ,price,25947.75,pt,1D,-16.0,-0.0006162438014539502,Yahoo Finance,final,https://finance.yahoo.com/quote/NQ=F,revised
+2025-10-28 17:50,S&P500,return_1m,0.0348390135215324,pct,1M,,,Yahoo Finance,final,https://finance.yahoo.com/quote/^GSPC,잠정(secondary)
+2025-10-28 17:50,S&P500,return_1w,0.020791027919869087,pct,1W,,,Yahoo Finance,final,https://finance.yahoo.com/quote/^GSPC,잠정(secondary)
+2025-10-28 17:50,S&P500,spot,6875.16015625,pt,1D,83.47021484375,0.012290050865671162,Yahoo Finance,final,https://finance.yahoo.com/quote/^GSPC,잠정(secondary)
+2025-10-28 17:50,SOX,return_1m,0.1368633401023578,pct,1M,,,Yahoo Finance,final,https://finance.yahoo.com/quote/^SOX,잠정(secondary)
+2025-10-28 17:50,SOX,return_1w,0.041096437363644434,pct,1W,,,Yahoo Finance,final,https://finance.yahoo.com/quote/^SOX,잠정(secondary)
+2025-10-28 17:50,SOX,spot,7167.97998046875,pt,1D,191.0400390625,0.027381637317633923,Yahoo Finance,final,https://finance.yahoo.com/quote/^SOX,잠정(secondary)
+2025-10-28 17:50,TIPS10Y,change_1d_bp,-2.9998779296875,bp,1D,,,Yahoo Finance,final,https://finance.yahoo.com/quote/TIP,잠정(secondary)
+2025-10-28 17:50,TIPS10Y,yield,111.94000244140625,pct,1D,-0.029998779296875,,Yahoo Finance,final,https://finance.yahoo.com/quote/TIP,잠정(secondary)
+2025-10-28 17:50,USD/KRW,corr_kospi_20d,0.8101928777823696,corr,20D,,,Yahoo Finance,final,https://finance.yahoo.com/quote/KRW=X,잠정(secondary)
+2025-10-28 17:50,USD/KRW,spot,1436.9200439453125,KRW,1D,-0.0499267578125,-3.4744468451258095e-05,Yahoo Finance,final,https://finance.yahoo.com/quote/KRW=X,revised
+2025-10-28 17:50,USD/KRW,vol_1d,0.0,vol,1D,,,Yahoo Finance,final,https://finance.yahoo.com/quote/KRW=X,잠정(secondary)
+2025-10-28 17:50,USD/KRW,vol_5d,0.04800181720732103,vol,5D,,,Yahoo Finance,final,https://finance.yahoo.com/quote/KRW=X,잠정(secondary)
+2025-10-28 17:50,UST10Y,change_1d_bp,0.0,bp,1D,,,Yahoo Finance,final,https://finance.yahoo.com/quote/^TNX,잠정(secondary)
+2025-10-28 17:50,UST10Y,yield,3.996999979019165,pct,1D,0.0,,Yahoo Finance,final,https://finance.yahoo.com/quote/^TNX,잠정(secondary)
+2025-10-28 17:50,UST2Y,change_1d_bp,-0.04218206529946755,bp,1D,,,synthetic-fallback,final,https://finance.yahoo.com/quote/^UST2Y,fallback: ValueError
+2025-10-28 17:50,UST2Y,yield,4.159942819222653,pct,1D,-0.0004218206529946755,,synthetic-fallback,final,https://finance.yahoo.com/quote/^UST2Y,fallback: ValueError
+2025-10-28 17:50,WTI,price,60.18000030517578,USD/bbl,1D,-1.1300010681152344,-0.0184309418170639,Yahoo Finance,final,https://finance.yahoo.com/quote/CL=F,revised

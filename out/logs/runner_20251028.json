@@ -1,13 +1,8 @@
 [
   {
-    "phase": "0730",
-    "ts_kst": "2025-10-28 11:22",
+    "phase": "1700",
+    "ts_kst": "2025-10-28 17:50",
     "status": "started"
-  },
-  {
-    "source": "crypto",
-    "status": "ok",
-    "count": 2
   },
   {
     "source": "fx",
@@ -15,19 +10,24 @@
     "count": 6
   },
   {
+    "source": "crypto",
+    "status": "ok",
+    "count": 2
+  },
+  {
     "source": "global_eq",
     "status": "ok",
     "count": 13
   },
   {
-    "source": "commod",
-    "status": "ok",
-    "count": 8
-  },
-  {
     "source": "rates",
     "status": "ok",
     "count": 11
+  },
+  {
+    "source": "commod",
+    "status": "ok",
+    "count": 8
   },
   {
     "source": "krx",
@@ -39,7 +39,7 @@
     "value": 1.0
   },
   {
-    "reconcile": false,
+    "reconcile": true,
     "rows": 53
   },
   {
