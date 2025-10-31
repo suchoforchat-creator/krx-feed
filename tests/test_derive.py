@@ -2,8 +2,10 @@ import math
 
 import numpy as np
 import pandas as pd
+import pytest
 
 from src.compute import compute_records
+from src.sources import commod_crypto
 from src.utils import rolling_corr, rolling_vol
 
 
@@ -90,3 +92,16 @@ def test_compute_records_outputs_required_keys():
     }
     seen = {(row["asset"], row["key"]) for row in records}
     assert required.issubset(seen)
+
+
+def test_commod_crypto_fallback(monkeypatch):
+    def boom(*_, **__):
+        raise RuntimeError("network down")
+
+    monkeypatch.setattr(commod_crypto.yf, "download", boom)
+    frames = commod_crypto.fetch(periods=5)
+    assert set(frames) == {"WTI", "Brent", "Gold", "Copper", "BTC"}
+    sample = frames["WTI"]
+    assert not sample.empty
+    assert sample["source"].iloc[0].startswith("Synthetic")
+    assert pd.to_datetime(sample["ts_kst"]).dt.tz is not None
