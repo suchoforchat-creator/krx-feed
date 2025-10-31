@@ -1,0 +1,48 @@
+[
+  {
+    "phase": "1700",
+    "ts_kst": "2025-10-30 17:48",
+    "status": "started"
+  },
+  {
+    "source": "crypto",
+    "status": "ok",
+    "count": 2
+  },
+  {
+    "source": "fx",
+    "status": "ok",
+    "count": 6
+  },
+  {
+    "source": "global_eq",
+    "status": "ok",
+    "count": 13
+  },
+  {
+    "source": "commod",
+    "status": "ok",
+    "count": 8
+  },
+  {
+    "source": "rates",
+    "status": "ok",
+    "count": 11
+  },
+  {
+    "source": "krx",
+    "status": "ok",
+    "count": 13
+  },
+  {
+    "metric": "coverage",
+    "value": 1.0
+  },
+  {
+    "reconcile": true,
+    "rows": 53
+  },
+  {
+    "status": "completed"
+  }
+]
