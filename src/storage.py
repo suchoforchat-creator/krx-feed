@@ -20,8 +20,13 @@ def write_raw(asset: str, phase: str, frame: pd.DataFrame) -> Path:
     date_str = datetime.now().strftime("%Y%m%d")
     path = RAW_DIR / asset / f"{date_str}_{phase}.parquet"
     ensure_dir(path.parent)
-    frame.to_parquet(path, index=False)
-    return path
+    try:
+        frame.to_parquet(path, index=False)
+        return path
+    except ImportError:
+        fallback = path.with_suffix(".csv")
+        frame.to_csv(fallback, index=False)
+        return fallback
 
 
 def _to_dataframe(rows: Iterable[Dict]) -> pd.DataFrame:
