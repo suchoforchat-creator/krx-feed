@@ -1,0 +1,201 @@
+kis:
+  mode: auto
+  token_cache: cache/kis_token.json
+  base_url: https://openapi.koreainvestment.com:9443
+  token_url: https://openapi.koreainvestment.com:9443/oauth2/tokenP
+  appkey_env: KIS_APPKEY
+  appsecret_env: KIS_APPSECRET
+  series:
+    indexes:
+      KOSPI:
+        path: /uapi/domestic-stock/v1/quotations/inquire-index-chartprice
+        tr_id: FHKUD00540000
+        params:
+          fid_cond_mrkt_div_code: J
+          fid_input_iscd: 0001
+          fid_input_option_1: 1
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/index/kospi
+      KOSDAQ:
+        path: /uapi/domestic-stock/v1/quotations/inquire-index-chartprice
+        tr_id: FHKUD00540000
+        params:
+          fid_cond_mrkt_div_code: Q
+          fid_input_iscd: 1001
+          fid_input_option_1: 1
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/index/kosdaq
+      K200:
+        path: /uapi/domestic-stock/v1/quotations/inquire-index-chartprice
+        tr_id: FHKUD00540000
+        params:
+          fid_cond_mrkt_div_code: J
+          fid_input_iscd: 2001
+          fid_input_option_1: 1
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/index/kospi200
+      SPX:
+        path: /uapi/overseas-stock/v1/trading/inquire-daily-chartprice
+        tr_id: FHKST03010100
+        params:
+          EXCD: NAS
+          SYMB: US.SP500
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/index/spx
+      NDX:
+        path: /uapi/overseas-stock/v1/trading/inquire-daily-chartprice
+        tr_id: FHKST03010100
+        params:
+          EXCD: NAS
+          SYMB: US.NASDAQ
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/index/ndx
+      SOX:
+        path: /uapi/overseas-stock/v1/trading/inquire-daily-chartprice
+        tr_id: FHKST03010100
+        params:
+          EXCD: NAS
+          SYMB: US.PHLX
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/index/sox
+    fx:
+      USDKRW:
+        path: /uapi/overseas-stock/v1/quotations/inquire-world-index-price
+        tr_id: FHKST03020100
+        params:
+          KEY_NM: USD/KRW
+        result_path: output
+        unit: krw
+        url: https://finance.koreainvestment.com/fx/usdkrw
+    futures:
+      ES:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: CME
+          SYMB: ES
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/futures/es
+      NQ:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: CME
+          SYMB: NQ
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/futures/nq
+      DX:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: ICE
+          SYMB: DX
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/futures/dx
+      UST2Y:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: CBOT
+          SYMB: ZT
+        result_path: output2
+        unit: price
+        url: https://finance.koreainvestment.com/global/futures/zt
+      UST5Y:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: CBOT
+          SYMB: ZF
+        result_path: output2
+        unit: price
+        url: https://finance.koreainvestment.com/global/futures/zf
+      UST10Y:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: CBOT
+          SYMB: ZN
+        result_path: output2
+        unit: price
+        url: https://finance.koreainvestment.com/global/futures/zn
+    yields:
+      KR3Y:
+        path: /uapi/domestic-bond/v1/quotations/inquire-daily-bondyield
+        tr_id: FHKN01010100
+        params:
+          BOND_ISCD: 000030
+        result_path: output
+        unit: pct
+        url: https://finance.koreainvestment.com/bond/kr3y
+      KR10Y:
+        path: /uapi/domestic-bond/v1/quotations/inquire-daily-bondyield
+        tr_id: FHKN01010100
+        params:
+          BOND_ISCD: 000050
+        result_path: output
+        unit: pct
+        url: https://finance.koreainvestment.com/bond/kr10y
+fallback:
+  indexes:
+    KOSPI: "^KS11"
+    KOSDAQ: "^KQ11"
+    K200: "^KS200"
+    SPX: "^GSPC"
+    NDX: "^NDX"
+    SOX: "^SOX"
+  fx:
+    USDKRW: "KRW=X"
+  futures:
+    ES: "ES=F"
+    NQ: "NQ=F"
+    DX: "DX=F"
+    UST2Y: "ZT=F"
+    UST5Y: "ZF=F"
+    UST10Y: "ZN=F"
+  yields:
+    KR3Y: "KRW3YT=RR"
+    KR10Y: "KRW10YT=RR"
+universe:
+  kospi:
+    - code: "005930"
+      name: Samsung Electronics
+      weight: 0.12
+    - code: "000660"
+      name: SK Hynix
+      weight: 0.08
+    - code: "005380"
+      name: Hyundai Motor
+      weight: 0.05
+  kosdaq:
+    - code: "035720"
+      name: Kakao
+      weight: 0.07
+    - code: "068270"
+      name: Celltrion
+      weight: 0.06
+futures:
+  es: MES
+  nq: MNQ
+  sox: SOXX
+  dx: DX
+  ust2y: ZT
+  ust5y: ZF
+  ust10y: ZN
+fx:
+  usdkrw: USDKRW
+commodities:
+  wti: CL=F
+  brent: BZ=F
+  gold: GC=F
+  copper: HG=F
+  btc: BTC-USD

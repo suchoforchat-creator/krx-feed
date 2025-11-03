@@ -1,2 +1,0 @@
-[0] https://data.krx.co.kr/contents/MDC/MAIN/main/index.cmd?locale=ko
-[1] https://data.krx.co.kr/contents/MDC/MAIN/main/index.cmd?locale=ko
