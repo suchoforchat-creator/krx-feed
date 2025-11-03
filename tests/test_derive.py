@@ -82,7 +82,7 @@ def test_compute_records_outputs_required_keys():
         "BTC": make_series("BTC", "close", np.linspace(60000, 60500, 40), unit="usd"),
     }
 
-    records = compute_records(ts, raw)
+    records = compute_records(ts, raw, {})
     required = {
         ("KOSPI", "idx"),
         ("KOSDAQ", "idx"),
@@ -99,9 +99,22 @@ def test_commod_crypto_fallback(monkeypatch):
         raise RuntimeError("network down")
 
     monkeypatch.setattr(commod_crypto.yf, "download", boom)
-    frames = commod_crypto.fetch(periods=5)
-    assert set(frames) == {"WTI", "Brent", "Gold", "Copper", "BTC"}
-    sample = frames["WTI"]
+
+    class FakeResponse:
+        def __init__(self, text: str):
+            self.text = text
+
+        def raise_for_status(self) -> None:  # pragma: no cover - simple stub
+            return None
+
+    def fake_get(url: str, timeout: int = 0):  # pragma: no cover - deterministic stub
+        return FakeResponse("""<html><span data-field='last'>83.45</span></html>""")
+
+    monkeypatch.setattr(commod_crypto.requests, "get", fake_get)
+    results = commod_crypto.fetch(periods=5)
+    assert set(results) == {"WTI", "Brent", "Gold", "Copper", "BTC"}
+    sample = results["WTI"].frame
     assert not sample.empty
-    assert sample["source"].iloc[0].startswith("Synthetic")
     assert pd.to_datetime(sample["ts_kst"]).dt.tz is not None
+    assert pytest.approx(float(sample["value"].iloc[-1]), rel=1e-6) == 83.45
+    assert results["WTI"].note == ""
