@@ -29,11 +29,12 @@ def _store_raw(asset: str, phase: str, frame: pd.DataFrame) -> None:
     write_raw(safe_name, phase, frame)
 
 
-def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict[str, str]]:
+def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict[str, str], Dict[str, list[str]]]:
     client = KISClient(config)
     universe = load_universe(config)
     raw_frames: Dict[str, pd.DataFrame] = {}
     failure_notes: Dict[str, str] = {}
+    metrics: Dict[str, list[str]] = {}
 
     for asset in ["KOSPI", "KOSDAQ", "K200", "SPX", "NDX", "SOX"]:
         frame = market.index_series(client, asset)
@@ -98,11 +99,11 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
     _store_raw("KOSDAQ", phase, raw_frames["KOSDAQ"])
 
     kor_yields = market.kor_yields(client)
-    if kor_yields.empty:
-        failure_notes["KR:3y"] = "parse_failed:KIS,no_data"
-        failure_notes["KR:10y"] = "parse_failed:KIS,no_data"
-    else:
-        for col, asset in [("kr3y", "KR3Y"), ("kr10y", "KR10Y")]:
+    yield_failures = getattr(client, "yield_failure_meta", {})
+    yields_meta = config.get("kis", {}).get("series", {}).get("yields", {})
+    note_keys = {"KR3Y": "KR:3y", "KR10Y": "KR:10y"}
+    for col, asset in [("kr3y", "KR3Y"), ("kr10y", "KR10Y")]:
+        if not kor_yields.empty and col in kor_yields.columns and kor_yields[col].notna().any():
             frame = pd.DataFrame(
                 {
                     "ts_kst": kor_yields["ts_kst"],
@@ -110,13 +111,27 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
                     "field": "yield",
                     "value": kor_yields[col],
                     "unit": "bp",
-                    "source": kor_yields["source"],
-                    "quality": kor_yields["quality"],
-                    "url": kor_yields["url"],
+                    "source": kor_yields.get("source", "KIS"),
+                    "quality": kor_yields.get("quality", "primary"),
+                    "url": kor_yields.get("url", yields_meta.get(asset, {}).get("url", "")),
                 }
-            )
-            raw_frames[asset] = frame
-            _store_raw(asset, phase, frame)
+            ).dropna(subset=["value"])
+            if not frame.empty:
+                raw_frames[asset] = frame
+                _store_raw(asset, phase, frame)
+            else:
+                info = yield_failures.get(asset, {})
+                url = info.get("url", yields_meta.get(asset, {}).get("url", ""))
+                reason = info.get("reason", "no_data")
+                failure_notes[note_keys.get(asset, f"{asset}:yield")] = f"parse_failed:{url},{reason}"
+        else:
+            info = yield_failures.get(asset, {})
+            url = info.get("url", yields_meta.get(asset, {}).get("url", ""))
+            reason = info.get("reason", "no_data")
+            failure_notes[note_keys.get(asset, f"{asset}:yield")] = f"parse_failed:{url},{reason}"
+
+    if getattr(client, "symbol_not_found", set()):
+        metrics["symbol_not_found"] = sorted(client.symbol_not_found)
 
     if raw_frames.get("UST2Y") is None or raw_frames["UST2Y"].empty:
         failure_notes["UST:2y"] = "parse_failed:KIS,no_proxy_available"
@@ -132,7 +147,7 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
         if result.note:
             failure_notes[f"{asset}:spot"] = result.note
 
-    return raw_frames, failure_notes
+    return raw_frames, failure_notes, metrics
 
 
 def main() -> int:
@@ -143,8 +158,10 @@ def main() -> int:
     append_log(ts, "start", {"phase": args.phase})
 
     try:
-        raw_frames, notes = collect_raw(config, args.phase)
+        raw_frames, notes, metrics = collect_raw(config, args.phase)
         append_log(ts, "raw", {"assets": list(raw_frames)})
+        if metrics.get("symbol_not_found"):
+            append_log(ts, "monitor", {"symbol_not_found": metrics["symbol_not_found"]})
         records = compute.compute_records(ts, raw_frames, notes)
         coverage = compute.check_coverage(records)
         append_log(ts, "coverage", {"ratio": coverage})

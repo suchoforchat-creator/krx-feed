@@ -6,7 +6,7 @@ import os
 from dataclasses import dataclass
 from datetime import datetime, timedelta, time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Iterable, Optional
 
 import pandas as pd
 import requests
@@ -56,6 +56,8 @@ class KISClient:
         self.token_url = kis_cfg.get("token_url", f"{self.base_url}/oauth2/tokenP")
         self.session = requests.Session()
         self._cached_token: Optional[Dict[str, Any]] = None
+        self.symbol_not_found: set[str] = set()
+        self.yield_failure_meta: Dict[str, Dict[str, str]] = {}
 
     @property
     def use_live(self) -> bool:
@@ -286,6 +288,43 @@ class KISClient:
         section = self.fallback.get(group, {})
         return section.get(name)
 
+    def _fixture_kor_yields(self, periods: int = 120) -> pd.DataFrame:
+        fixtures = self.config.get("fixtures", {}).get("kor_yields", [])
+        if not fixtures:
+            return pd.DataFrame()
+
+        records: list[dict[str, Any]] = []
+        for row in fixtures:
+            date_value = row.get("date")
+            if not date_value:
+                continue
+            try:
+                dt = datetime.strptime(str(date_value), "%Y-%m-%d")
+            except ValueError:
+                logger.debug("잘못된 fixtures.kor_yields 날짜 포맷: %s", date_value)
+                continue
+            ts = datetime.combine(dt, time(17, 0), tzinfo=KST)
+            rec = {"ts_kst": ts}
+            for key in ("kr3y", "kr5y", "kr10y"):
+                if key in row and row[key] is not None:
+                    try:
+                        rec[key] = float(row[key])
+                    except (TypeError, ValueError):
+                        logger.debug("fixtures.kor_yields %s 변환 실패: %s", key, row[key])
+            if any(k in rec for k in ("kr3y", "kr10y")):
+                records.append(rec)
+
+        if not records:
+            return pd.DataFrame()
+
+        frame = pd.DataFrame(records)
+        frame = frame.sort_values("ts_kst").drop_duplicates(subset=["ts_kst"], keep="last")
+        frame = frame.tail(periods)
+        frame["source"] = "fixtures"
+        frame["quality"] = "secondary"
+        frame["url"] = self.config.get("fixtures", {}).get("kor_yields_url", "")
+        return frame.reset_index(drop=True)
+
     def _pykrx_kor_yields(self, periods: int = 120) -> pd.DataFrame:
         records: list[dict[str, Any]] = []
         candidates = {
@@ -353,7 +392,7 @@ class KISClient:
                 break
 
         if not records:
-            return pd.DataFrame()
+            return self._fixture_kor_yields(periods=periods)
 
         frame = pd.DataFrame(records)
         frame = frame.drop_duplicates(subset=["ts_kst"]).sort_values("ts_kst").tail(periods)
@@ -361,6 +400,109 @@ class KISClient:
         frame["quality"] = "secondary"
         frame["url"] = "https://www.kofiabond.or.kr"
         return frame.reset_index(drop=True)
+
+    def _fetch_yield_with_retry(self, alias: str, periods: int = 120) -> pd.DataFrame:
+        last_exc: Optional[Exception] = None
+        for attempt in range(3):
+            try:
+                frame = self._fetch_series("yields", alias, periods)
+                if frame.empty:
+                    raise ValueError("empty response")
+                return frame
+            except Exception as exc:
+                last_exc = exc
+                logger.debug("KIS %s 수익률 %d차 시도 실패: %s", alias, attempt + 1, exc)
+        if last_exc:
+            raise last_exc
+        raise RuntimeError(f"{alias} fetch failed")
+
+    def _ecos_kor_yields(self, targets: Iterable[str], periods: int = 120) -> tuple[Dict[str, pd.DataFrame], Dict[str, str]]:
+        ecos_cfg = self.config.get("ecos", {})
+        if not ecos_cfg:
+            return {}, {alias: "ecos_unconfigured" for alias in targets}
+
+        api_key_env = ecos_cfg.get("api_key_env")
+        api_key = ecos_cfg.get("api_key")
+        if not api_key and api_key_env:
+            api_key = os.getenv(api_key_env, "")
+        if not api_key:
+            return {}, {alias: "ecos_api_key_missing" for alias in targets}
+
+        base_url = ecos_cfg.get("base_url", "https://ecos.bok.or.kr/api/StatisticSearch")
+        timeout = ecos_cfg.get("timeout", 25)
+        end = kst_now().date()
+        start = end - timedelta(days=periods * 3)
+        start_str = start.strftime("%Y%m%d")
+        end_str = end.strftime("%Y%m%d")
+
+        results: Dict[str, pd.DataFrame] = {}
+        failures: Dict[str, str] = {}
+        series_meta = ecos_cfg.get("series", {})
+
+        for alias in targets:
+            meta = series_meta.get(alias)
+            if not meta:
+                failures[alias] = "ecos_series_missing"
+                continue
+            statistic = meta.get("statistic")
+            if not statistic:
+                failures[alias] = "ecos_statistic_missing"
+                continue
+            cycle = meta.get("cycle", "DD")
+            items = list(meta.get("items", []))
+            while len(items) < 3:
+                items.append("")
+            start_row = int(meta.get("start_row", 1))
+            end_row = int(meta.get("end_row", max(200, periods * 3)))
+            url = "/".join(
+                [
+                    base_url.rstrip("/"),
+                    api_key,
+                    "json",
+                    "kr",
+                    str(start_row),
+                    str(end_row),
+                    statistic,
+                    cycle,
+                    start_str,
+                    end_str,
+                    *(item or "" for item in items[:3]),
+                ]
+            )
+            try:
+                resp = self.session.get(url, timeout=timeout)
+                resp.raise_for_status()
+                payload = resp.json()
+            except Exception as exc:
+                logger.warning("ECOS %s 요청 실패: %s", alias, exc)
+                failures[alias] = "ecos_request_failed"
+                continue
+
+            rows = payload.get("StatisticSearch", {}).get("row", [])
+            if not rows:
+                failures[alias] = "ecos_empty"
+                continue
+
+            frame = pd.DataFrame(rows)
+            if "TIME" not in frame or "DATA_VALUE" not in frame:
+                failures[alias] = "ecos_field_missing"
+                continue
+
+            frame["ts_kst"] = pd.to_datetime(frame["TIME"], format="%Y%m%d", errors="coerce")
+            frame["ts_kst"] = frame["ts_kst"].dt.tz_localize(KST, nonexistent="shift_forward", ambiguous="NaT")
+            frame["value"] = pd.to_numeric(frame["DATA_VALUE"], errors="coerce")
+            frame = frame.dropna(subset=["ts_kst", "value"]).sort_values("ts_kst").tail(periods)
+            if frame.empty:
+                failures[alias] = "ecos_empty"
+                continue
+
+            frame = frame[["ts_kst", "value"]]
+            frame["source"] = "BOK_ECOS"
+            frame["quality"] = "secondary"
+            frame["url"] = meta.get("url", base_url)
+            results[alias] = frame.reset_index(drop=True)
+
+        return results, failures
 
     # ------------------------------------------------------------------
     # Data accessors
@@ -464,33 +606,116 @@ class KISClient:
             return pd.DataFrame()
 
     def get_kor_yields(self) -> pd.DataFrame:
-        if self.use_live:
-            try:
-                kr3 = self._fetch_series("yields", "KR3Y")
-                kr10 = self._fetch_series("yields", "KR10Y")
-                merged = _merge_frames({"kr3y": kr3, "kr10y": kr10})
-                if not merged.empty:
-                    merged["source"] = "KIS"
-                    merged["quality"] = "primary"
-                    merged["url"] = self.series_meta.get("yields", {}).get("KR3Y", {}).get("url", self.base_url)
-                    return merged
-            except Exception as exc:
-                logger.warning("KIS 국채수익률 조회 실패: %s", exc)
+        self.symbol_not_found.clear()
+        self.yield_failure_meta = {}
+
         frames: Dict[str, pd.DataFrame] = {}
-        for alias, symbol in self.fallback.get("yields", {}).items():
-            try:
-                frames[alias.lower()] = self._yf_history(symbol)
-            except Exception as exc:  # pragma: no cover - network dependent
-                logger.warning("yield fallback failed for %s (%s): %s", alias, symbol, exc)
+        used_sources: list[str] = []
+        used_urls: list[str] = []
+        missing: set[str] = {"KR3Y", "KR10Y"}
+
+        if self.use_live:
+            for alias in list(missing):
+                try:
+                    frame = self._fetch_yield_with_retry(alias)
+                    frames[alias.lower()] = frame
+                    missing.discard(alias)
+                    src = "KIS"
+                    url = self.series_meta.get("yields", {}).get(alias, {}).get("url", self.base_url)
+                    if src not in used_sources:
+                        used_sources.append(src)
+                    if url and url not in used_urls:
+                        used_urls.append(url)
+                    self.yield_failure_meta.pop(alias, None)
+                except Exception as exc:
+                    logger.warning("KIS 국채수익률 %s 조회 실패: %s", alias, exc)
+                    meta = self.series_meta.get("yields", {}).get(alias, {})
+                    url = meta.get("url", self.base_url)
+                    self.yield_failure_meta[alias] = {"reason": "KIS_error", "url": url}
+
+        if missing:
+            ecos_frames, ecos_failures = self._ecos_kor_yields(missing)
+            for alias, frame in ecos_frames.items():
+                if frame.empty:
+                    continue
+                frames[alias.lower()] = frame
+                missing.discard(alias)
+                src = str(frame.get("source", pd.Series(["BOK_ECOS"])).iloc[-1]) if not frame.empty else "BOK_ECOS"
+                url = str(frame.get("url", pd.Series([""])).iloc[-1]) if not frame.empty else ""
+                if src and src not in used_sources:
+                    used_sources.append(src)
+                if url and url not in used_urls:
+                    used_urls.append(url)
+                self.yield_failure_meta.pop(alias, None)
+            for alias, reason in ecos_failures.items():
+                if alias in missing:
+                    meta = self.config.get("ecos", {}).get("series", {}).get(alias, {})
+                    url = meta.get("url", self.config.get("ecos", {}).get("base_url", ""))
+                    self.yield_failure_meta[alias] = {"reason": reason, "url": url}
+
+        if missing:
+            pykrx_frame = self._pykrx_kor_yields()
+            if not pykrx_frame.empty:
+                for alias, column in ("KR3Y", "kr3y"), ("KR10Y", "kr10y"):
+                    if alias in missing and column in pykrx_frame.columns:
+                        series = pykrx_frame[["ts_kst", column]].dropna()
+                        if series.empty:
+                            continue
+                        temp = series.rename(columns={column: "value"})
+                        temp["source"] = "pykrx"
+                        temp["quality"] = "secondary"
+                        temp["url"] = pykrx_frame.get("url", pd.Series(["https://www.kofiabond.or.kr"]))
+                        frames[alias.lower()] = temp
+                        missing.discard(alias)
+                        if "pykrx" not in used_sources:
+                            used_sources.append("pykrx")
+                        url = str(temp.get("url", pd.Series([""])).iloc[-1]) if not temp.empty else ""
+                        if url and url not in used_urls:
+                            used_urls.append(url)
+                        self.yield_failure_meta.pop(alias, None)
+
+        if missing:
+            fixture_frame = self._fixture_kor_yields()
+            if not fixture_frame.empty:
+                for alias, column in ("KR3Y", "kr3y"), ("KR10Y", "kr10y"):
+                    if alias in missing and column in fixture_frame.columns:
+                        series = fixture_frame[["ts_kst", column]].dropna()
+                        if series.empty:
+                            continue
+                        temp = series.rename(columns={column: "value"})
+                        temp["source"] = "fixtures"
+                        temp["quality"] = "secondary"
+                        temp["url"] = fixture_frame.get("url", pd.Series([self.config.get("fixtures", {}).get("kor_yields_url", "")]))
+                        frames[alias.lower()] = temp
+                        missing.discard(alias)
+                        if "fixtures" not in used_sources:
+                            used_sources.append("fixtures")
+                        url = str(temp.get("url", pd.Series([""])).iloc[-1]) if not temp.empty else ""
+                        if url and url not in used_urls:
+                            used_urls.append(url)
+                        self.yield_failure_meta.pop(alias, None)
+
+        if missing:
+            for alias in missing:
+                meta = self.series_meta.get("yields", {}).get(alias, {})
+                url = meta.get("url", self.base_url)
+                self.symbol_not_found.add(alias)
+                self.yield_failure_meta[alias] = {"reason": "symbol_not_found", "url": url}
+
+        if not frames:
+            return pd.DataFrame()
+
         merged = _merge_frames(frames)
-        if not merged.empty:
-            merged = merged.rename(columns={col: col for col in merged.columns})
-            merged["source"] = "YahooFinance"
-            merged["quality"] = "secondary"
-            merged["url"] = "https://finance.yahoo.com"
-            merged = merged.rename(columns={"kr3y": "kr3y", "kr10y": "kr10y"})
-            return merged
-        pykrx_frame = self._pykrx_kor_yields()
-        if not pykrx_frame.empty:
-            return pykrx_frame
-        return pd.DataFrame()
+        if merged.empty:
+            return pd.DataFrame()
+
+        if not used_sources:
+            used_sources.append("secondary")
+        merged["source"] = "+".join(dict.fromkeys(used_sources))
+        qualities = []
+        for df in frames.values():
+            if "quality" in df.columns and not df.empty:
+                qualities.append(str(df["quality"].iloc[-1]))
+        merged["quality"] = "primary" if "KIS" in used_sources else ("secondary" if qualities else "secondary")
+        merged["url"] = " ".join(dict.fromkeys([u for u in used_urls if u]))
+        return merged

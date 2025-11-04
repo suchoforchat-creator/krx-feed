@@ -162,9 +162,26 @@ fallback:
     UST2Y: "ZT=F"
     UST5Y: "ZF=F"
     UST10Y: "ZN=F"
-  yields:
-    KR3Y: "KRW3YT=RR"
-    KR10Y: "KRW10YT=RR"
+  yields: {}
+ecos:
+  api_key_env: BOK_API_KEY
+  base_url: https://ecos.bok.or.kr/api/StatisticSearch
+  timeout: 25
+  series:
+    KR3Y:
+      statistic: 060Y001
+      cycle: DD
+      items: [0101000]
+      end_row: 600
+      unit: pct
+      url: https://ecos.bok.or.kr/api/StatisticSearch/
+    KR10Y:
+      statistic: 060Y001
+      cycle: DD
+      items: [0103000]
+      end_row: 600
+      unit: pct
+      url: https://ecos.bok.or.kr/api/StatisticSearch/
 universe:
   kospi:
     - code: "005930"
@@ -199,3 +216,238 @@ commodities:
   gold: GC=F
   copper: HG=F
   btc: BTC-USD
+fixtures:
+  indexes:
+    KOSPI:
+      base: 2600
+      amplitude: 45
+    KOSDAQ:
+      base: 830
+      amplitude: 25
+    K200:
+      base: 340
+      amplitude: 12
+    SPX:
+      base: 5200
+      amplitude: 60
+    NDX:
+      base: 18000
+      amplitude: 220
+    SOX:
+      base: 5100
+      amplitude: 130
+  fx:
+    USDKRW:
+      base: 1350
+      amplitude: 8
+  futures:
+    ES:
+      base: 5220
+      amplitude: 65
+    NQ:
+      base: 18250
+      amplitude: 250
+    DX:
+      base: 104
+      amplitude: 0.5
+    ZN:
+      base: 111
+      amplitude: 0.3
+    ZF:
+      base: 118
+      amplitude: 0.25
+    ZT:
+      base: 102
+      amplitude: 0.18
+  commodities:
+    WTI:
+      base: 82
+      amplitude: 4
+    Brent:
+      base: 86
+      amplitude: 3.5
+    Gold:
+      base: 2350
+      amplitude: 40
+    Copper:
+      base: 4.2
+      amplitude: 0.15
+    BTC:
+      base: 68000
+      amplitude: 3500
+  kor_yields_url: https://www.kofiabond.or.kr
+  kor_yields:
+    - date: "2024-05-01"
+      kr3y: 3.45
+      kr10y: 3.58
+    - date: "2024-05-02"
+      kr3y: 3.46
+      kr10y: 3.6
+    - date: "2024-05-03"
+      kr3y: 3.44
+      kr10y: 3.59
+    - date: "2024-05-04"
+      kr3y: 3.47
+      kr10y: 3.61
+    - date: "2024-05-05"
+      kr3y: 3.5
+      kr10y: 3.64
+    - date: "2024-05-06"
+      kr3y: 3.52
+      kr10y: 3.66
+    - date: "2024-05-07"
+      kr3y: 3.48
+      kr10y: 3.63
+    - date: "2024-05-08"
+      kr3y: 3.51
+      kr10y: 3.65
+    - date: "2024-05-09"
+      kr3y: 3.53
+      kr10y: 3.67
+    - date: "2024-05-10"
+      kr3y: 3.55
+      kr10y: 3.7
+    - date: "2024-05-11"
+      kr3y: 3.54
+      kr10y: 3.69
+    - date: "2024-05-12"
+      kr3y: 3.52
+      kr10y: 3.67
+    - date: "2024-05-13"
+      kr3y: 3.49
+      kr10y: 3.64
+    - date: "2024-05-14"
+      kr3y: 3.5
+      kr10y: 3.63
+    - date: "2024-05-15"
+      kr3y: 3.48
+      kr10y: 3.61
+    - date: "2024-05-16"
+      kr3y: 3.46
+      kr10y: 3.6
+    - date: "2024-05-17"
+      kr3y: 3.44
+      kr10y: 3.58
+    - date: "2024-05-18"
+      kr3y: 3.43
+      kr10y: 3.57
+    - date: "2024-05-19"
+      kr3y: 3.45
+      kr10y: 3.58
+    - date: "2024-05-20"
+      kr3y: 3.47
+      kr10y: 3.6
+    - date: "2024-05-21"
+      kr3y: 3.49
+      kr10y: 3.62
+    - date: "2024-05-22"
+      kr3y: 3.5
+      kr10y: 3.63
+    - date: "2024-05-23"
+      kr3y: 3.52
+      kr10y: 3.65
+    - date: "2024-05-24"
+      kr3y: 3.55
+      kr10y: 3.68
+    - date: "2024-05-25"
+      kr3y: 3.57
+      kr10y: 3.7
+    - date: "2024-05-26"
+      kr3y: 3.6
+      kr10y: 3.73
+    - date: "2024-05-27"
+      kr3y: 3.62
+      kr10y: 3.75
+    - date: "2024-05-28"
+      kr3y: 3.61
+      kr10y: 3.74
+    - date: "2024-05-29"
+      kr3y: 3.58
+      kr10y: 3.72
+    - date: "2024-05-30"
+      kr3y: 3.56
+      kr10y: 3.7
+    - date: "2024-05-31"
+      kr3y: 3.55
+      kr10y: 3.69
+    - date: "2024-06-01"
+      kr3y: 3.54
+      kr10y: 3.68
+    - date: "2024-06-02"
+      kr3y: 3.52
+      kr10y: 3.66
+    - date: "2024-06-03"
+      kr3y: 3.51
+      kr10y: 3.65
+    - date: "2024-06-04"
+      kr3y: 3.5
+      kr10y: 3.64
+    - date: "2024-06-05"
+      kr3y: 3.48
+      kr10y: 3.62
+    - date: "2024-06-06"
+      kr3y: 3.47
+      kr10y: 3.6
+    - date: "2024-06-07"
+      kr3y: 3.46
+      kr10y: 3.59
+    - date: "2024-06-08"
+      kr3y: 3.45
+      kr10y: 3.58
+    - date: "2024-06-09"
+      kr3y: 3.44
+      kr10y: 3.57
+    - date: "2024-06-10"
+      kr3y: 3.46
+      kr10y: 3.58
+    - date: "2024-06-11"
+      kr3y: 3.48
+      kr10y: 3.6
+    - date: "2024-06-12"
+      kr3y: 3.5
+      kr10y: 3.62
+    - date: "2024-06-13"
+      kr3y: 3.51
+      kr10y: 3.63
+    - date: "2024-06-14"
+      kr3y: 3.53
+      kr10y: 3.65
+    - date: "2024-06-15"
+      kr3y: 3.55
+      kr10y: 3.67
+    - date: "2024-06-16"
+      kr3y: 3.57
+      kr10y: 3.69
+    - date: "2024-06-17"
+      kr3y: 3.6
+      kr10y: 3.72
+    - date: "2024-06-18"
+      kr3y: 3.62
+      kr10y: 3.74
+    - date: "2024-06-19"
+      kr3y: 3.63
+      kr10y: 3.75
+    - date: "2024-06-20"
+      kr3y: 3.61
+      kr10y: 3.73
+    - date: "2024-06-21"
+      kr3y: 3.6
+      kr10y: 3.72
+    - date: "2024-06-22"
+      kr3y: 3.58
+      kr10y: 3.7
+    - date: "2024-06-23"
+      kr3y: 3.57
+      kr10y: 3.69
+    - date: "2024-06-24"
+      kr3y: 3.55
+      kr10y: 3.67
+    - date: "2024-06-25"
+      kr3y: 3.54
+      kr10y: 3.66
+    - date: "2024-06-26"
+      kr3y: 3.52
+      kr10y: 3.64
+    - date: "2024-06-27"
+      kr3y: 3.5
+      kr10y: 3.63
