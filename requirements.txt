@@ -1,0 +1,13 @@
+pandas
+numpy
+pytz
+python-dateutil
+pyyaml
+requests
+websockets
+tenacity
+beautifulsoup4
+lxml
+yfinance
+pykrx
+pyarrow
