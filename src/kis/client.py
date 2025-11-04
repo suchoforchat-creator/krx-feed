@@ -240,26 +240,46 @@ class KISClient:
     # Helpers
     # ------------------------------------------------------------------
     def _yf_history(self, symbol: str, periods: int = 120) -> pd.DataFrame:
-        data = yf.download(symbol, period="1y", interval="1d", progress=False, auto_adjust=False, threads=False)
-        close = data.get("Close")
-        if close is None:
-            raise ValueError(f"no close data for {symbol}")
+        data = yf.download(
+            symbol,
+            period="1y",
+            interval="1d",
+            progress=False,
+            auto_adjust=False,
+            threads=False,
+        )
+        if data.empty:
+            raise ValueError(f"empty response for {symbol}")
+
+        close = data
+        if isinstance(close.columns, pd.MultiIndex):
+            # Yahoo가 멀티 인덱스 컬럼으로 반환하는 경우 Close 레벨만 선택
+            level0 = close.columns.get_level_values(0)
+            if "Close" in level0:
+                close = close.xs("Close", axis=1, level=0)
         if isinstance(close, pd.DataFrame):
-            if close.shape[1] == 0:
-                raise ValueError(f"no close data for {symbol}")
-            close = close.iloc[:, 0]
-        close = close.dropna().tail(periods)
+            if "Close" in close.columns:
+                close = close["Close"]
+            elif close.shape[1] == 1:
+                close = close.iloc[:, 0]
+        if not isinstance(close, pd.Series):
+            raise ValueError(f"unable to locate close column for {symbol}")
+
+        close = pd.to_numeric(close, errors="coerce").dropna()
+        if close.empty:
+            raise ValueError(f"no close data for {symbol}")
+
+        close = close.tail(periods)
         idx = _to_kst_index(close.index)
         length = len(close)
-        frame = pd.DataFrame(
-            {
-                "ts_kst": idx,
-                "value": close.to_numpy(),
-                "source": [f"YahooFinance({symbol})"] * length,
-                "quality": ["secondary"] * length,
-                "url": [f"https://finance.yahoo.com/quote/{symbol}"] * length,
-            }
-        )
+        data_dict = {
+            "ts_kst": list(idx),
+            "value": close.to_numpy().reshape(length),
+            "source": [f"YahooFinance({symbol})"] * length,
+            "quality": ["secondary"] * length,
+            "url": [f"https://finance.yahoo.com/quote/{symbol}"] * length,
+        }
+        frame = pd.DataFrame(data_dict)
         return frame
 
     def _fallback_symbol(self, group: str, name: str) -> Optional[str]:
