@@ -286,6 +286,43 @@ class KISClient:
         section = self.fallback.get(group, {})
         return section.get(name)
 
+    def _fixture_kor_yields(self, periods: int = 120) -> pd.DataFrame:
+        fixtures = self.config.get("fixtures", {}).get("kor_yields", [])
+        if not fixtures:
+            return pd.DataFrame()
+
+        records: list[dict[str, Any]] = []
+        for row in fixtures:
+            date_value = row.get("date")
+            if not date_value:
+                continue
+            try:
+                dt = datetime.strptime(str(date_value), "%Y-%m-%d")
+            except ValueError:
+                logger.debug("잘못된 fixtures.kor_yields 날짜 포맷: %s", date_value)
+                continue
+            ts = datetime.combine(dt, time(17, 0), tzinfo=KST)
+            rec = {"ts_kst": ts}
+            for key in ("kr3y", "kr5y", "kr10y"):
+                if key in row and row[key] is not None:
+                    try:
+                        rec[key] = float(row[key])
+                    except (TypeError, ValueError):
+                        logger.debug("fixtures.kor_yields %s 변환 실패: %s", key, row[key])
+            if any(k in rec for k in ("kr3y", "kr10y")):
+                records.append(rec)
+
+        if not records:
+            return pd.DataFrame()
+
+        frame = pd.DataFrame(records)
+        frame = frame.sort_values("ts_kst").drop_duplicates(subset=["ts_kst"], keep="last")
+        frame = frame.tail(periods)
+        frame["source"] = "fixtures"
+        frame["quality"] = "secondary"
+        frame["url"] = self.config.get("fixtures", {}).get("kor_yields_url", "")
+        return frame.reset_index(drop=True)
+
     def _pykrx_kor_yields(self, periods: int = 120) -> pd.DataFrame:
         records: list[dict[str, Any]] = []
         candidates = {
@@ -353,7 +390,7 @@ class KISClient:
                 break
 
         if not records:
-            return pd.DataFrame()
+            return self._fixture_kor_yields(periods=periods)
 
         frame = pd.DataFrame(records)
         frame = frame.drop_duplicates(subset=["ts_kst"]).sort_values("ts_kst").tail(periods)

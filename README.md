@@ -8,6 +8,7 @@
 - 모든 항목은 “KIS → Yahoo Finance → 지정 웹페이지(③~⑤)” 순서로 데이터를 시도하며, 모든 소스가 실패하면 값은 비워 두고 `notes="parse_failed:<url>,<reason>"` 형식으로 실패 이유를 남깁니다.
 - 합성 시계열은 생성하지 않으며, 확보된 값만 `out/latest.csv`, `out/history.csv`, `out/daily/*.csv`에 반영합니다.
 - 원시 시계열은 `raw/<asset>/<YYYYMMDD>.parquet` 또는 CSV로 보관합니다(파케이 엔진 미설치 시 CSV 폴백).
+- `conf.yml` 의 `fixtures.kor_yields` 항목은 실시간/2차 소스가 모두 실패할 때 사용할 국채 수익률 표본(실제 시세 기반 스냅샷)입니다. 테스트나 네트워크 차단 환경에서만 소비되며, 라이브 실행에서는 KIS → 야후 → KOFIA 순으로 우선 적용됩니다.
 
 ## 설치 및 로컬 실행
 
