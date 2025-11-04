@@ -1,0 +1,436 @@
+kis:
+  mode: auto
+  token_cache: cache/kis_token.json
+  base_url: https://openapi.koreainvestment.com:9443
+  token_url: https://openapi.koreainvestment.com:9443/oauth2/tokenP
+  appkey_env: KIS_APPKEY
+  appsecret_env: KIS_APPSECRET
+  series:
+    indexes:
+      KOSPI:
+        path: /uapi/domestic-stock/v1/quotations/inquire-index-chartprice
+        tr_id: FHKUD00540000
+        params:
+          fid_cond_mrkt_div_code: J
+          fid_input_iscd: 0001
+          fid_input_option_1: 1
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/index/kospi
+      KOSDAQ:
+        path: /uapi/domestic-stock/v1/quotations/inquire-index-chartprice
+        tr_id: FHKUD00540000
+        params:
+          fid_cond_mrkt_div_code: Q
+          fid_input_iscd: 1001
+          fid_input_option_1: 1
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/index/kosdaq
+      K200:
+        path: /uapi/domestic-stock/v1/quotations/inquire-index-chartprice
+        tr_id: FHKUD00540000
+        params:
+          fid_cond_mrkt_div_code: J
+          fid_input_iscd: 2001
+          fid_input_option_1: 1
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/index/kospi200
+      SPX:
+        path: /uapi/overseas-stock/v1/trading/inquire-daily-chartprice
+        tr_id: FHKST03010100
+        params:
+          EXCD: NAS
+          SYMB: US.SP500
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/index/spx
+      NDX:
+        path: /uapi/overseas-stock/v1/trading/inquire-daily-chartprice
+        tr_id: FHKST03010100
+        params:
+          EXCD: NAS
+          SYMB: US.NASDAQ
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/index/ndx
+      SOX:
+        path: /uapi/overseas-stock/v1/trading/inquire-daily-chartprice
+        tr_id: FHKST03010100
+        params:
+          EXCD: NAS
+          SYMB: US.PHLX
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/index/sox
+    fx:
+      USDKRW:
+        path: /uapi/overseas-stock/v1/quotations/inquire-world-index-price
+        tr_id: FHKST03020100
+        params:
+          KEY_NM: USD/KRW
+        result_path: output
+        unit: krw
+        url: https://finance.koreainvestment.com/fx/usdkrw
+    futures:
+      ES:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: CME
+          SYMB: ES
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/futures/es
+      NQ:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: CME
+          SYMB: NQ
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/futures/nq
+      DX:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: ICE
+          SYMB: DX
+        result_path: output2
+        unit: pt
+        url: https://finance.koreainvestment.com/global/futures/dx
+      UST2Y:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: CBOT
+          SYMB: ZT
+        result_path: output2
+        unit: price
+        url: https://finance.koreainvestment.com/global/futures/zt
+      UST5Y:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: CBOT
+          SYMB: ZF
+        result_path: output2
+        unit: price
+        url: https://finance.koreainvestment.com/global/futures/zf
+      UST10Y:
+        path: /uapi/overseas-futuresoption/v1/quotations/inquire-daily-chartprice
+        tr_id: FHKO03450000
+        params:
+          EXCD: CBOT
+          SYMB: ZN
+        result_path: output2
+        unit: price
+        url: https://finance.koreainvestment.com/global/futures/zn
+    yields:
+      KR3Y:
+        path: /uapi/domestic-bond/v1/quotations/inquire-daily-bondyield
+        tr_id: FHKN01010100
+        params:
+          BOND_ISCD: 000030
+        result_path: output
+        unit: pct
+        url: https://finance.koreainvestment.com/bond/kr3y
+      KR10Y:
+        path: /uapi/domestic-bond/v1/quotations/inquire-daily-bondyield
+        tr_id: FHKN01010100
+        params:
+          BOND_ISCD: 000050
+        result_path: output
+        unit: pct
+        url: https://finance.koreainvestment.com/bond/kr10y
+fallback:
+  indexes:
+    KOSPI: "^KS11"
+    KOSDAQ: "^KQ11"
+    K200: "^KS200"
+    SPX: "^GSPC"
+    NDX: "^NDX"
+    SOX: "^SOX"
+  fx:
+    USDKRW: "KRW=X"
+  futures:
+    ES: "ES=F"
+    NQ: "NQ=F"
+    DX: "DX=F"
+    UST2Y: "ZT=F"
+    UST5Y: "ZF=F"
+    UST10Y: "ZN=F"
+  yields:
+    KR3Y: "KRW3YT=RR"
+    KR10Y: "KRW10YT=RR"
+universe:
+  kospi:
+    - code: "005930"
+      name: Samsung Electronics
+      weight: 0.12
+    - code: "000660"
+      name: SK Hynix
+      weight: 0.08
+    - code: "005380"
+      name: Hyundai Motor
+      weight: 0.05
+  kosdaq:
+    - code: "035720"
+      name: Kakao
+      weight: 0.07
+    - code: "068270"
+      name: Celltrion
+      weight: 0.06
+futures:
+  es: MES
+  nq: MNQ
+  sox: SOXX
+  dx: DX
+  ust2y: ZT
+  ust5y: ZF
+  ust10y: ZN
+fx:
+  usdkrw: USDKRW
+commodities:
+  wti: CL=F
+  brent: BZ=F
+  gold: GC=F
+  copper: HG=F
+  btc: BTC-USD
+fixtures:
+  indexes:
+    KOSPI:
+      base: 2600
+      amplitude: 45
+    KOSDAQ:
+      base: 830
+      amplitude: 25
+    K200:
+      base: 340
+      amplitude: 12
+    SPX:
+      base: 5200
+      amplitude: 60
+    NDX:
+      base: 18000
+      amplitude: 220
+    SOX:
+      base: 5100
+      amplitude: 130
+  fx:
+    USDKRW:
+      base: 1350
+      amplitude: 8
+  futures:
+    ES:
+      base: 5220
+      amplitude: 65
+    NQ:
+      base: 18250
+      amplitude: 250
+    DX:
+      base: 104
+      amplitude: 0.5
+    ZN:
+      base: 111
+      amplitude: 0.3
+    ZF:
+      base: 118
+      amplitude: 0.25
+    ZT:
+      base: 102
+      amplitude: 0.18
+  commodities:
+    WTI:
+      base: 82
+      amplitude: 4
+    Brent:
+      base: 86
+      amplitude: 3.5
+    Gold:
+      base: 2350
+      amplitude: 40
+    Copper:
+      base: 4.2
+      amplitude: 0.15
+    BTC:
+      base: 68000
+      amplitude: 3500
+  kor_yields_url: https://www.kofiabond.or.kr
+  kor_yields:
+    - date: "2024-05-01"
+      kr3y: 3.45
+      kr10y: 3.58
+    - date: "2024-05-02"
+      kr3y: 3.46
+      kr10y: 3.6
+    - date: "2024-05-03"
+      kr3y: 3.44
+      kr10y: 3.59
+    - date: "2024-05-04"
+      kr3y: 3.47
+      kr10y: 3.61
+    - date: "2024-05-05"
+      kr3y: 3.5
+      kr10y: 3.64
+    - date: "2024-05-06"
+      kr3y: 3.52
+      kr10y: 3.66
+    - date: "2024-05-07"
+      kr3y: 3.48
+      kr10y: 3.63
+    - date: "2024-05-08"
+      kr3y: 3.51
+      kr10y: 3.65
+    - date: "2024-05-09"
+      kr3y: 3.53
+      kr10y: 3.67
+    - date: "2024-05-10"
+      kr3y: 3.55
+      kr10y: 3.7
+    - date: "2024-05-11"
+      kr3y: 3.54
+      kr10y: 3.69
+    - date: "2024-05-12"
+      kr3y: 3.52
+      kr10y: 3.67
+    - date: "2024-05-13"
+      kr3y: 3.49
+      kr10y: 3.64
+    - date: "2024-05-14"
+      kr3y: 3.5
+      kr10y: 3.63
+    - date: "2024-05-15"
+      kr3y: 3.48
+      kr10y: 3.61
+    - date: "2024-05-16"
+      kr3y: 3.46
+      kr10y: 3.6
+    - date: "2024-05-17"
+      kr3y: 3.44
+      kr10y: 3.58
+    - date: "2024-05-18"
+      kr3y: 3.43
+      kr10y: 3.57
+    - date: "2024-05-19"
+      kr3y: 3.45
+      kr10y: 3.58
+    - date: "2024-05-20"
+      kr3y: 3.47
+      kr10y: 3.6
+    - date: "2024-05-21"
+      kr3y: 3.49
+      kr10y: 3.62
+    - date: "2024-05-22"
+      kr3y: 3.5
+      kr10y: 3.63
+    - date: "2024-05-23"
+      kr3y: 3.52
+      kr10y: 3.65
+    - date: "2024-05-24"
+      kr3y: 3.55
+      kr10y: 3.68
+    - date: "2024-05-25"
+      kr3y: 3.57
+      kr10y: 3.7
+    - date: "2024-05-26"
+      kr3y: 3.6
+      kr10y: 3.73
+    - date: "2024-05-27"
+      kr3y: 3.62
+      kr10y: 3.75
+    - date: "2024-05-28"
+      kr3y: 3.61
+      kr10y: 3.74
+    - date: "2024-05-29"
+      kr3y: 3.58
+      kr10y: 3.72
+    - date: "2024-05-30"
+      kr3y: 3.56
+      kr10y: 3.7
+    - date: "2024-05-31"
+      kr3y: 3.55
+      kr10y: 3.69
+    - date: "2024-06-01"
+      kr3y: 3.54
+      kr10y: 3.68
+    - date: "2024-06-02"
+      kr3y: 3.52
+      kr10y: 3.66
+    - date: "2024-06-03"
+      kr3y: 3.51
+      kr10y: 3.65
+    - date: "2024-06-04"
+      kr3y: 3.5
+      kr10y: 3.64
+    - date: "2024-06-05"
+      kr3y: 3.48
+      kr10y: 3.62
+    - date: "2024-06-06"
+      kr3y: 3.47
+      kr10y: 3.6
+    - date: "2024-06-07"
+      kr3y: 3.46
+      kr10y: 3.59
+    - date: "2024-06-08"
+      kr3y: 3.45
+      kr10y: 3.58
+    - date: "2024-06-09"
+      kr3y: 3.44
+      kr10y: 3.57
+    - date: "2024-06-10"
+      kr3y: 3.46
+      kr10y: 3.58
+    - date: "2024-06-11"
+      kr3y: 3.48
+      kr10y: 3.6
+    - date: "2024-06-12"
+      kr3y: 3.5
+      kr10y: 3.62
+    - date: "2024-06-13"
+      kr3y: 3.51
+      kr10y: 3.63
+    - date: "2024-06-14"
+      kr3y: 3.53
+      kr10y: 3.65
+    - date: "2024-06-15"
+      kr3y: 3.55
+      kr10y: 3.67
+    - date: "2024-06-16"
+      kr3y: 3.57
+      kr10y: 3.69
+    - date: "2024-06-17"
+      kr3y: 3.6
+      kr10y: 3.72
+    - date: "2024-06-18"
+      kr3y: 3.62
+      kr10y: 3.74
+    - date: "2024-06-19"
+      kr3y: 3.63
+      kr10y: 3.75
+    - date: "2024-06-20"
+      kr3y: 3.61
+      kr10y: 3.73
+    - date: "2024-06-21"
+      kr3y: 3.6
+      kr10y: 3.72
+    - date: "2024-06-22"
+      kr3y: 3.58
+      kr10y: 3.7
+    - date: "2024-06-23"
+      kr3y: 3.57
+      kr10y: 3.69
+    - date: "2024-06-24"
+      kr3y: 3.55
+      kr10y: 3.67
+    - date: "2024-06-25"
+      kr3y: 3.54
+      kr10y: 3.66
+    - date: "2024-06-26"
+      kr3y: 3.52
+      kr10y: 3.64
+    - date: "2024-06-27"
+      kr3y: 3.5
+      kr10y: 3.63
