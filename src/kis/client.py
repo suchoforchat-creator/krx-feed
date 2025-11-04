@@ -4,14 +4,14 @@ import json
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import pandas as pd
 import requests
 import yfinance as yf
-from pykrx import stock
+from pykrx import bond, stock
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..utils import KST, kst_now
@@ -286,6 +286,82 @@ class KISClient:
         section = self.fallback.get(group, {})
         return section.get(name)
 
+    def _pykrx_kor_yields(self, periods: int = 120) -> pd.DataFrame:
+        records: list[dict[str, Any]] = []
+        candidates = {
+            "kr3y": [
+                "국고채(3년)",
+                "3년",
+                "3년물",
+                "3Y",
+                "3-year",
+                "국채3년",
+            ],
+            "kr10y": [
+                "국고채(10년)",
+                "10년",
+                "10년물",
+                "10Y",
+                "10-year",
+                "국채10년",
+            ],
+        }
+
+        def pick(series_df: pd.DataFrame, key: str) -> pd.Series:
+            for column in candidates[key]:
+                if column in series_df.columns:
+                    values = pd.to_numeric(series_df[column], errors="coerce")
+                    if values.notna().any():
+                        return values
+            return pd.Series(dtype=float)
+
+        today = datetime.now(KST).date()
+        for offset in range(periods * 3):
+            current = today - timedelta(days=offset)
+            date_str = current.strftime("%Y%m%d")
+            try:
+                daily = bond.get_otc_treasury_yields(date_str)
+            except Exception as exc:  # pragma: no cover - network dependent
+                logger.debug("pykrx 국채수익률 조회 실패(%s): %s", date_str, exc)
+                continue
+
+            if daily is None or daily.empty:
+                continue
+
+            daily = daily.reset_index(drop=True)
+            three = pick(daily, "kr3y")
+            ten = pick(daily, "kr10y")
+
+            if three.empty or ten.empty:
+                continue
+
+            value3 = three.iloc[-1]
+            value10 = ten.iloc[-1]
+            if pd.isna(value3) or pd.isna(value10):
+                continue
+
+            ts = datetime.combine(current, time(17, 0), tzinfo=KST)
+            records.append(
+                {
+                    "ts_kst": ts,
+                    "kr3y": float(value3),
+                    "kr10y": float(value10),
+                }
+            )
+
+            if len(records) >= periods:
+                break
+
+        if not records:
+            return pd.DataFrame()
+
+        frame = pd.DataFrame(records)
+        frame = frame.drop_duplicates(subset=["ts_kst"]).sort_values("ts_kst").tail(periods)
+        frame["source"] = "pykrx"
+        frame["quality"] = "secondary"
+        frame["url"] = "https://www.kofiabond.or.kr"
+        return frame.reset_index(drop=True)
+
     # ------------------------------------------------------------------
     # Data accessors
     # ------------------------------------------------------------------
@@ -414,4 +490,7 @@ class KISClient:
             merged["url"] = "https://finance.yahoo.com"
             merged = merged.rename(columns={"kr3y": "kr3y", "kr10y": "kr10y"})
             return merged
+        pykrx_frame = self._pykrx_kor_yields()
+        if not pykrx_frame.empty:
+            return pykrx_frame
         return pd.DataFrame()
