@@ -1,12 +1,23 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence
 
 import numpy as np
 import pandas as pd
 
-from .utils import clip_numeric, coverage_ratio, rolling_corr, rolling_vol, ts_string
+from datetime import datetime
+
+from .utils import (
+    SCHEMA_COLUMNS,
+    clip_numeric,
+    coverage_ratio,
+    ensure_schema,
+    rolling_corr,
+    rolling_vol,
+    ts_string,
+)
 
 REQUIRED_KEYS = [
     "KOSPI:idx",
@@ -52,10 +63,98 @@ class SeriesBundle:
     url: str
 
 
+def compute_hv(prices: Sequence[float], window: int) -> float:
+    if window <= 0:
+        raise ValueError("window must be positive")
+    if len(prices) < 2:
+        return float("nan")
+    log_returns: List[float] = []
+    for prev, curr in zip(prices, prices[1:]):
+        if prev == 0:
+            continue
+        log_returns.append(math.log(curr / prev))
+    if len(log_returns) < window:
+        return float("nan")
+    tail = log_returns[-window:]
+    mean = sum(tail) / window
+    variance = sum((val - mean) ** 2 for val in tail) / window
+    return math.sqrt(252 * variance)
+
+
+def compute_correlation(series_a: Sequence[float], series_b: Sequence[float], window: int) -> float:
+    if window <= 1:
+        raise ValueError("window must be greater than 1")
+    if len(series_a) < window or len(series_b) < window:
+        return float("nan")
+    tail_a = list(series_a)[-window:]
+    tail_b = list(series_b)[-window:]
+    mean_a = sum(tail_a) / window
+    mean_b = sum(tail_b) / window
+    cov = sum((a - mean_a) * (b - mean_b) for a, b in zip(tail_a, tail_b))
+    var_a = sum((a - mean_a) ** 2 for a in tail_a)
+    var_b = sum((b - mean_b) ** 2 for b in tail_b)
+    if var_a == 0 or var_b == 0:
+        return float("nan")
+    return cov / math.sqrt(var_a * var_b)
+
+
+def compute_basis(future: float, spot: float) -> float:
+    if spot == 0:
+        raise ValueError("spot price cannot be zero")
+    return (future / spot) - 1
+
+
+class RecordBuilder:
+    def __init__(self, ts: str | datetime) -> None:
+        if isinstance(ts, datetime):
+            self._ts_kst = ts_string(ts)
+        else:
+            self._ts_kst = str(ts)
+
+    def make(
+        self,
+        asset: str,
+        key: str,
+        value: float,
+        *,
+        unit: str = "",
+        window: str = "",
+        change_abs: float | None = None,
+        change_pct: float | None = None,
+        source: str = "",
+        quality: str = "primary",
+        url: str = "",
+        notes: str = "",
+    ) -> Dict[str, object]:
+        record: Dict[str, object] = {
+            "ts_kst": self._ts_kst,
+            "asset": asset,
+            "key": key,
+            "value": clip_numeric(value),
+            "unit": unit,
+            "window": window,
+            "change_abs": clip_numeric(change_abs) if change_abs is not None else None,
+            "change_pct": clip_numeric(change_pct) if change_pct is not None else None,
+            "source": source,
+            "quality": quality,
+            "url": url,
+            "notes": notes,
+        }
+        # ensure optional fields are serialisable
+        for column in SCHEMA_COLUMNS:
+            record.setdefault(column, None)
+        ensure_schema(record)
+        return record
+
+
 def _series_from_raw(raw: Dict[str, pd.DataFrame], asset: str, field: str) -> SeriesBundle:
     frame = raw.get(asset)
     if frame is None or frame.empty:
         return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
+    required = {"field", "ts_kst", "value"}
+    if not required.issubset(frame.columns):
+        return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
+
     subset = frame[frame["field"] == field].copy()
     if subset.empty:
         return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
