@@ -35,7 +35,7 @@ def fx_series(client: KISClient, name: str, periods: int = 120) -> pd.DataFrame:
 
 
 def futures_series(client: KISClient, name: str, periods: int = 120, alias: str | None = None, unit: str = "pt") -> pd.DataFrame:
-    frame = client.get_futures_series(name, periods)
+    frame = client.get_futures_series(name, periods, alias=alias)
     return _inject_defaults(frame, client, unit, "close", alias or name)
 
 

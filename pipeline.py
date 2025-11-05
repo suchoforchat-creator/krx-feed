@@ -54,13 +54,36 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
         "UST10Y": config.get("futures", {}).get("ust10y", "ZN"),
     }
     for alias, symbol in futures_map.items():
-        frame = market.futures_series(client, symbol, alias=alias)
+        unit = "bp" if alias in {"UST2Y", "UST5Y", "UST10Y"} else "pt"
+        frame = market.futures_series(client, symbol, alias=alias, unit=unit)
+        if alias in {"UST2Y", "UST5Y", "UST10Y"} and not frame.empty:
+            frame = frame.copy()
+            frame["field"] = "yield"
         raw_frames[alias] = frame
         _store_raw(alias, phase, frame)
 
     snaps = market.equity_snapshots(client, universe)
-    stats = breadth.adv_dec_unch(snaps)
-    source_label = "KIS" if client.use_live else "pykrx"
+    stats: Dict[str, pd.Series] = {}
+    turnover_value = float("nan")
+    kis_base_url = config.get("kis", {}).get("base_url", "")
+    if snaps.empty:
+        reason = "no_market_snapshot"
+        for asset in ("KOSPI", "KOSDAQ"):
+            failure_notes[f"{asset}:adv"] = f"parse_failed:{kis_base_url},{reason}"
+            failure_notes[f"{asset}:dec"] = f"parse_failed:{kis_base_url},{reason}"
+            failure_notes[f"{asset}:unch"] = f"parse_failed:{kis_base_url},{reason}"
+            failure_notes[f"{asset}:limit_up"] = f"parse_failed:{kis_base_url},{reason}"
+            failure_notes[f"{asset}:limit_down"] = f"parse_failed:{kis_base_url},{reason}"
+        failure_notes["KOSPI:trin"] = f"parse_failed:{kis_base_url},{reason}"
+        failure_notes["KOSPI:turnover"] = f"parse_failed:{kis_base_url},{reason}"
+        source_label = ""
+        quality_label = ""
+    else:
+        stats = breadth.adv_dec_unch(snaps)
+        source_label = "KIS" if client.use_live else "pykrx"
+        quality_label = "primary" if client.use_live else "secondary"
+        turnover_value = float(snaps["value_traded"].sum())
+
     now = datetime.now(KST)
     for market_name in ["kospi", "kosdaq"]:
         asset = market_name.upper()
@@ -75,28 +98,30 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
                     "value": [value],
                     "unit": [unit],
                     "source": [source_label],
-                    "quality": ["primary"],
-                    "url": [config.get("kis", {}).get("base_url", "")],
+                    "quality": [quality_label],
+                    "url": [kis_base_url],
                 }
             )
             existing = raw_frames.get(asset)
             raw_frames[asset] = pd.concat([existing, frame], ignore_index=True) if existing is not None else frame
-    turnover_value = float(snaps["value_traded"].sum())
-    turnover_frame = pd.DataFrame(
-        {
-            "ts_kst": [now],
-            "asset": ["KOSPI"],
-            "field": ["turnover"],
-            "value": [turnover_value],
-            "unit": ["krw_bn"],
-            "source": [source_label],
-            "quality": ["primary"],
-            "url": [config.get("kis", {}).get("base_url", "")],
-        }
-    )
-    raw_frames["KOSPI"] = pd.concat([raw_frames["KOSPI"], turnover_frame], ignore_index=True)
-    _store_raw("KOSPI", phase, raw_frames["KOSPI"])
-    _store_raw("KOSDAQ", phase, raw_frames["KOSDAQ"])
+    if stats:
+        turnover_frame = pd.DataFrame(
+            {
+                "ts_kst": [now],
+                "asset": ["KOSPI"],
+                "field": ["turnover"],
+                "value": [turnover_value],
+                "unit": ["krw_bn"],
+                "source": [source_label],
+                "quality": [quality_label],
+                "url": [kis_base_url],
+            }
+        )
+        raw_frames["KOSPI"] = pd.concat([raw_frames["KOSPI"], turnover_frame], ignore_index=True)
+    if "KOSPI" in raw_frames:
+        _store_raw("KOSPI", phase, raw_frames["KOSPI"])
+    if "KOSDAQ" in raw_frames:
+        _store_raw("KOSDAQ", phase, raw_frames["KOSDAQ"])
 
     kor_yields = market.kor_yields(client)
     yield_failures = getattr(client, "yield_failure_meta", {})
