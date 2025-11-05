@@ -190,15 +190,13 @@ def main() -> int:
         records = compute.compute_records(ts, raw_frames, notes)
         coverage = compute.check_coverage(records)
         append_log(ts, "coverage", {"ratio": coverage})
-        if coverage < 0.8:
-            write_latest(records)
-            write_daily(records, ts)
-            append_log(ts, "failure", {"reason": "coverage"})
-            return 2
 
         latest_path = write_latest(records)
         daily_path = write_daily(records, ts)
         cleanup_daily()
+
+        if coverage < 0.8:
+            append_log(ts, "warning", {"reason": "coverage", "ratio": coverage})
 
         if args.reconcile:
             reconciled = reconcile.reconcile(records, daily_path)

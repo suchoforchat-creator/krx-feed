@@ -355,6 +355,11 @@ class KISClient:
                 break
 
         frame = pd.DataFrame(records)
+        if frame.empty:
+            return pd.DataFrame(
+                columns=["ts_kst", "kr3y", "kr10y", "source", "quality", "url"]
+            )
+
         frame = frame.drop_duplicates(subset=["ts_kst"]).sort_values("ts_kst").tail(periods)
         frame["source"] = "pykrx"
         frame["quality"] = "secondary"

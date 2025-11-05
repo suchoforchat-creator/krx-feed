@@ -151,6 +151,10 @@ def _series_from_raw(raw: Dict[str, pd.DataFrame], asset: str, field: str) -> Se
     frame = raw.get(asset)
     if frame is None or frame.empty:
         return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
+    required = {"field", "ts_kst", "value"}
+    if not required.issubset(frame.columns):
+        return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
+
     subset = frame[frame["field"] == field].copy()
     if subset.empty:
         return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
