@@ -14,7 +14,7 @@ DEFAULT_THRESHOLDS = {
     "hv30": 0.1,
     "spot_fx": 0.05,
     "yield": 1.0,
-    "2s10s": 1.0,
+    "2s10s_spread": 5.0,
     "trin": 0.1,
 }
 
@@ -32,8 +32,8 @@ def _threshold_for(row: Dict) -> float:
         return DEFAULT_THRESHOLDS["hv30"]
     if key in ("2y", "10y", "3y", "10y"):
         return DEFAULT_THRESHOLDS["yield"]
-    if key == "2s10s":
-        return DEFAULT_THRESHOLDS["2s10s"]
+    if key == "spread" and asset in {"2s10s_US", "2s10s_KR"}:
+        return DEFAULT_THRESHOLDS["2s10s_spread"]
     if key == "trin":
         return DEFAULT_THRESHOLDS["trin"]
     return DEFAULT_THRESHOLDS.get(key, 0.1)

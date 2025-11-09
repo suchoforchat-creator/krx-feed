@@ -1,12 +1,44 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional
+from typing import Dict, Iterable, List, Optional, Sequence, Callable
 
 import numpy as np
 import pandas as pd
 
-from .utils import clip_numeric, coverage_ratio, rolling_corr, rolling_vol, ts_string
+from datetime import datetime
+import logging
+
+from .utils import (
+    SCHEMA_COLUMNS,
+    clip_numeric,
+    coverage_ratio,
+    ensure_schema,
+    rolling_corr,
+    rolling_vol,
+    ts_string,
+)
+
+logger = logging.getLogger(__name__)
+
+
+def _debug_value(name: str, value: float, validator: Callable[[float], bool]) -> None:
+    """간단한 디버깅 헬퍼.
+
+    계산된 값이 기대 범위를 벗어날 경우 로그로 남겨 이후 조사에 활용한다.
+    validator는 True/False를 돌려주는 함수이며, False가 나오면 경고를 남긴다.
+    """
+
+    if np.isnan(value):
+        # NaN은 계산 재료가 부족한 경우이므로 조용히 넘어간다.
+        return
+    try:
+        if not validator(value):
+            logger.debug("compute::_debug_value :: %s -> suspicious value %.6f", name, value)
+    except Exception as exc:  # pragma: no cover - 방어적 장치
+        logger.debug("compute::_debug_value :: validator failure for %s (%s)", name, exc)
+
 
 REQUIRED_KEYS = [
     "KOSPI:idx",
@@ -28,7 +60,8 @@ REQUIRED_KEYS = [
     "SOX:ret_1m",
     "USD/KRW:spot",
     "DXY:proxy",
-    "UST:2s10s",
+    "2s10s_US:spread",
+    "2s10s_KR:spread",
     "UST:2y",
     "UST:10y",
     "KR:3y",
@@ -52,10 +85,98 @@ class SeriesBundle:
     url: str
 
 
+def compute_hv(prices: Sequence[float], window: int) -> float:
+    if window <= 0:
+        raise ValueError("window must be positive")
+    if len(prices) < 2:
+        return float("nan")
+    log_returns: List[float] = []
+    for prev, curr in zip(prices, prices[1:]):
+        if prev == 0:
+            continue
+        log_returns.append(math.log(curr / prev))
+    if len(log_returns) < window:
+        return float("nan")
+    tail = log_returns[-window:]
+    mean = sum(tail) / window
+    variance = sum((val - mean) ** 2 for val in tail) / window
+    return math.sqrt(252 * variance)
+
+
+def compute_correlation(series_a: Sequence[float], series_b: Sequence[float], window: int) -> float:
+    if window <= 1:
+        raise ValueError("window must be greater than 1")
+    if len(series_a) < window or len(series_b) < window:
+        return float("nan")
+    tail_a = list(series_a)[-window:]
+    tail_b = list(series_b)[-window:]
+    mean_a = sum(tail_a) / window
+    mean_b = sum(tail_b) / window
+    cov = sum((a - mean_a) * (b - mean_b) for a, b in zip(tail_a, tail_b))
+    var_a = sum((a - mean_a) ** 2 for a in tail_a)
+    var_b = sum((b - mean_b) ** 2 for b in tail_b)
+    if var_a == 0 or var_b == 0:
+        return float("nan")
+    return cov / math.sqrt(var_a * var_b)
+
+
+def compute_basis(future: float, spot: float) -> float:
+    if spot == 0:
+        raise ValueError("spot price cannot be zero")
+    return (future / spot) - 1
+
+
+class RecordBuilder:
+    def __init__(self, ts: str | datetime) -> None:
+        if isinstance(ts, datetime):
+            self._ts_kst = ts_string(ts)
+        else:
+            self._ts_kst = str(ts)
+
+    def make(
+        self,
+        asset: str,
+        key: str,
+        value: float,
+        *,
+        unit: str = "",
+        window: str = "",
+        change_abs: float | None = None,
+        change_pct: float | None = None,
+        source: str = "",
+        quality: str = "primary",
+        url: str = "",
+        notes: str = "",
+    ) -> Dict[str, object]:
+        record: Dict[str, object] = {
+            "ts_kst": self._ts_kst,
+            "asset": asset,
+            "key": key,
+            "value": clip_numeric(value),
+            "unit": unit,
+            "window": window,
+            "change_abs": clip_numeric(change_abs) if change_abs is not None else None,
+            "change_pct": clip_numeric(change_pct) if change_pct is not None else None,
+            "source": source,
+            "quality": quality,
+            "url": url,
+            "notes": notes,
+        }
+        # ensure optional fields are serialisable
+        for column in SCHEMA_COLUMNS:
+            record.setdefault(column, None)
+        ensure_schema(record)
+        return record
+
+
 def _series_from_raw(raw: Dict[str, pd.DataFrame], asset: str, field: str) -> SeriesBundle:
     frame = raw.get(asset)
     if frame is None or frame.empty:
         return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
+    required = {"field", "ts_kst", "value"}
+    if not required.issubset(frame.columns):
+        return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
+
     subset = frame[frame["field"] == field].copy()
     if subset.empty:
         return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
@@ -396,7 +517,7 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
                 asset,
                 key,
                 _latest(bundle.series),
-                "bp",
+                "pct",
                 "1D",
                 _change(bundle.series),
                 _pct_change(bundle.series),
@@ -412,23 +533,49 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     yield_record(kr3y, "KR", "3y")
     yield_record(kr10y, "KR", "10y")
 
-    spread = _latest(ust10y.series) - _latest(ust2y.series)
-    records.append(
-        _record(
-            ts_kst,
-            "UST",
-            "2s10s",
-            spread,
-            "bp",
-            "1D",
-            float("nan"),
-            float("nan"),
-            ust10y.source,
-            ust10y.quality,
-            ust10y.url,
-            notes=note("UST", "2s10s") or "proxy",
+    def add_spread(asset: str, key: str, long_leg: SeriesBundle, short_leg: SeriesBundle) -> None:
+        """미국/한국 2s10s 스프레드를 계산하고 디버깅 정보를 남긴다."""
+
+        long_latest = _latest(long_leg.series)
+        short_latest = _latest(short_leg.series)
+        value = float("nan")
+        if not np.isnan(long_latest) and not np.isnan(short_latest):
+            value = (long_latest - short_latest) * 100.0
+            _debug_value(f"{asset}:{key}", value, lambda v: abs(v) < 1000)
+
+        combined_source = "+".join(
+            sorted(
+                {
+                    src
+                    for src in [long_leg.source, short_leg.source]
+                    if src
+                }
+            )
         )
-    )
+        combined_quality = long_leg.quality or short_leg.quality
+        combined_url = " ".join(
+            [part for part in [long_leg.url, short_leg.url] if part]
+        )
+
+        records.append(
+            _record(
+                ts_kst,
+                asset,
+                key,
+                value,
+                "bp",
+                "1D",
+                float("nan"),
+                float("nan"),
+                combined_source or long_leg.source,
+                combined_quality,
+                combined_url,
+                notes=note(asset, key),
+            )
+        )
+
+    add_spread("2s10s_US", "spread", ust10y, ust2y)
+    add_spread("2s10s_KR", "spread", kr10y, kr3y)
 
     for bundle, asset, unit in [
         (wti, "WTI", "usd"),
