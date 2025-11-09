@@ -48,10 +48,16 @@ COLUMN_MAP = {
     ("KOSPI", "advance"): "kospi_adv",
     ("KOSPI", "decline"): "kospi_dec",
     ("KOSPI", "unchanged"): "kospi_unch",
+    ("KOSPI", "adv"): "kospi_adv",
+    ("KOSPI", "dec"): "kospi_dec",
+    ("KOSPI", "unch"): "kospi_unch",
     ("KOSDAQ", "idx"): "kosdaq",
     ("KOSDAQ", "advance"): "kosdaq_adv",
     ("KOSDAQ", "decline"): "kosdaq_dec",
     ("KOSDAQ", "unchanged"): "kosdaq_unch",
+    ("KOSDAQ", "adv"): "kosdaq_adv",
+    ("KOSDAQ", "dec"): "kosdaq_dec",
+    ("KOSDAQ", "unch"): "kosdaq_unch",
     ("USD/KRW", "spot"): "usdkrw",
     ("DXY", "idx"): "dxy",
     ("UST2Y", "yield"): "ust2y",
@@ -66,6 +72,7 @@ COLUMN_MAP = {
     ("Copper", "price"): "copper",
     ("BTC", "price"): "btc",
     ("KOSPI200", "hv30"): "k200_hv30",
+    ("K200", "hv30"): "k200_hv30",
 }
 
 

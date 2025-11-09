@@ -2,12 +2,13 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Dict, Iterable, List, Optional, Sequence
+from typing import Dict, Iterable, List, Optional, Sequence, Callable
 
 import numpy as np
 import pandas as pd
 
 from datetime import datetime
+import logging
 
 from .utils import (
     SCHEMA_COLUMNS,
@@ -18,6 +19,26 @@ from .utils import (
     rolling_vol,
     ts_string,
 )
+
+logger = logging.getLogger(__name__)
+
+
+def _debug_value(name: str, value: float, validator: Callable[[float], bool]) -> None:
+    """간단한 디버깅 헬퍼.
+
+    계산된 값이 기대 범위를 벗어날 경우 로그로 남겨 이후 조사에 활용한다.
+    validator는 True/False를 돌려주는 함수이며, False가 나오면 경고를 남긴다.
+    """
+
+    if np.isnan(value):
+        # NaN은 계산 재료가 부족한 경우이므로 조용히 넘어간다.
+        return
+    try:
+        if not validator(value):
+            logger.debug("compute::_debug_value :: %s -> suspicious value %.6f", name, value)
+    except Exception as exc:  # pragma: no cover - 방어적 장치
+        logger.debug("compute::_debug_value :: validator failure for %s (%s)", name, exc)
+
 
 REQUIRED_KEYS = [
     "KOSPI:idx",
@@ -39,7 +60,8 @@ REQUIRED_KEYS = [
     "SOX:ret_1m",
     "USD/KRW:spot",
     "DXY:proxy",
-    "UST:2s10s",
+    "2s10s_US:spread",
+    "2s10s_KR:spread",
     "UST:2y",
     "UST:10y",
     "KR:3y",
@@ -495,7 +517,7 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
                 asset,
                 key,
                 _latest(bundle.series),
-                "bp",
+                "pct",
                 "1D",
                 _change(bundle.series),
                 _pct_change(bundle.series),
@@ -511,23 +533,49 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     yield_record(kr3y, "KR", "3y")
     yield_record(kr10y, "KR", "10y")
 
-    spread = _latest(ust10y.series) - _latest(ust2y.series)
-    records.append(
-        _record(
-            ts_kst,
-            "UST",
-            "2s10s",
-            spread,
-            "bp",
-            "1D",
-            float("nan"),
-            float("nan"),
-            ust10y.source,
-            ust10y.quality,
-            ust10y.url,
-            notes=note("UST", "2s10s") or "proxy",
+    def add_spread(asset: str, key: str, long_leg: SeriesBundle, short_leg: SeriesBundle) -> None:
+        """미국/한국 2s10s 스프레드를 계산하고 디버깅 정보를 남긴다."""
+
+        long_latest = _latest(long_leg.series)
+        short_latest = _latest(short_leg.series)
+        value = float("nan")
+        if not np.isnan(long_latest) and not np.isnan(short_latest):
+            value = (long_latest - short_latest) * 100.0
+            _debug_value(f"{asset}:{key}", value, lambda v: abs(v) < 1000)
+
+        combined_source = "+".join(
+            sorted(
+                {
+                    src
+                    for src in [long_leg.source, short_leg.source]
+                    if src
+                }
+            )
         )
-    )
+        combined_quality = long_leg.quality or short_leg.quality
+        combined_url = " ".join(
+            [part for part in [long_leg.url, short_leg.url] if part]
+        )
+
+        records.append(
+            _record(
+                ts_kst,
+                asset,
+                key,
+                value,
+                "bp",
+                "1D",
+                float("nan"),
+                float("nan"),
+                combined_source or long_leg.source,
+                combined_quality,
+                combined_url,
+                notes=note(asset, key),
+            )
+        )
+
+    add_spread("2s10s_US", "spread", ust10y, ust2y)
+    add_spread("2s10s_KR", "spread", kr10y, kr3y)
 
     for bundle, asset, unit in [
         (wti, "WTI", "usd"),

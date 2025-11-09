@@ -9,8 +9,10 @@ from typing import Dict, Tuple
 import pandas as pd
 
 from src import compute, reconcile
-from src.kis import KISClient, breadth, market
+from src.kis import KISClient, market
 from src.sources import commod_crypto
+from src.sources.krx_breadth import KRXBreadthCollector, determine_target
+from src.sources.kr_rates import KRXKorRates
 from src.storage import append_log, cleanup_daily, write_daily, write_latest, write_raw
 from src.universe import load_universe
 from src.utils import KST, load_yaml
@@ -35,6 +37,10 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
     raw_frames: Dict[str, pd.DataFrame] = {}
     failure_notes: Dict[str, str] = {}
     metrics: Dict[str, list[str]] = {}
+    run_ts = datetime.now(KST)
+    target_date, _ = determine_target(run_ts)
+    breadth_collector = KRXBreadthCollector()
+    rate_collector = KRXKorRates()
 
     for asset in ["KOSPI", "KOSDAQ", "K200", "SPX", "NDX", "SOX"]:
         frame = market.index_series(client, asset)
@@ -62,98 +68,25 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
         raw_frames[alias] = frame
         _store_raw(alias, phase, frame)
 
-    snaps = market.equity_snapshots(client, universe)
-    stats: Dict[str, pd.Series] = {}
-    turnover_value = float("nan")
-    kis_base_url = config.get("kis", {}).get("base_url", "")
-    if snaps.empty:
-        reason = "no_market_snapshot"
-        for asset in ("KOSPI", "KOSDAQ"):
-            failure_notes[f"{asset}:adv"] = f"parse_failed:{kis_base_url},{reason}"
-            failure_notes[f"{asset}:dec"] = f"parse_failed:{kis_base_url},{reason}"
-            failure_notes[f"{asset}:unch"] = f"parse_failed:{kis_base_url},{reason}"
-            failure_notes[f"{asset}:limit_up"] = f"parse_failed:{kis_base_url},{reason}"
-            failure_notes[f"{asset}:limit_down"] = f"parse_failed:{kis_base_url},{reason}"
-        failure_notes["KOSPI:trin"] = f"parse_failed:{kis_base_url},{reason}"
-        failure_notes["KOSPI:turnover"] = f"parse_failed:{kis_base_url},{reason}"
-        source_label = ""
-        quality_label = ""
-    else:
-        stats = breadth.adv_dec_unch(snaps)
-        source_label = "KIS" if client.use_live else "pykrx"
-        quality_label = "primary" if client.use_live else "secondary"
-        turnover_value = float(snaps["value_traded"].sum())
-
-    now = datetime.now(KST)
-    for market_name in ["kospi", "kosdaq"]:
-        asset = market_name.upper()
-        for field, series in stats.items():
-            value = float(series.get(market_name, 0))
-            unit = "krw_bn" if "value" in field else "count"
-            frame = pd.DataFrame(
-                {
-                    "ts_kst": [now],
-                    "asset": [asset],
-                    "field": [field],
-                    "value": [value],
-                    "unit": [unit],
-                    "source": [source_label],
-                    "quality": [quality_label],
-                    "url": [kis_base_url],
-                }
-            )
-            existing = raw_frames.get(asset)
-            raw_frames[asset] = pd.concat([existing, frame], ignore_index=True) if existing is not None else frame
-    if stats:
-        turnover_frame = pd.DataFrame(
-            {
-                "ts_kst": [now],
-                "asset": ["KOSPI"],
-                "field": ["turnover"],
-                "value": [turnover_value],
-                "unit": ["krw_bn"],
-                "source": [source_label],
-                "quality": [quality_label],
-                "url": [kis_base_url],
-            }
-        )
-        raw_frames["KOSPI"] = pd.concat([raw_frames["KOSPI"], turnover_frame], ignore_index=True)
-    if "KOSPI" in raw_frames:
-        _store_raw("KOSPI", phase, raw_frames["KOSPI"])
-    if "KOSDAQ" in raw_frames:
-        _store_raw("KOSDAQ", phase, raw_frames["KOSDAQ"])
-
-    kor_yields = market.kor_yields(client)
-    yield_failures = getattr(client, "yield_failure_meta", {})
-    yields_meta = config.get("kis", {}).get("series", {}).get("yields", {})
-    note_keys = {"KR3Y": "KR:3y", "KR10Y": "KR:10y"}
-    for col, asset in [("kr3y", "KR3Y"), ("kr10y", "KR10Y")]:
-        if not kor_yields.empty and col in kor_yields.columns and kor_yields[col].notna().any():
-            frame = pd.DataFrame(
-                {
-                    "ts_kst": kor_yields["ts_kst"],
-                    "asset": asset,
-                    "field": "yield",
-                    "value": kor_yields[col],
-                    "unit": "bp",
-                    "source": kor_yields.get("source", "KIS"),
-                    "quality": kor_yields.get("quality", "primary"),
-                    "url": kor_yields.get("url", yields_meta.get(asset, {}).get("url", "")),
-                }
-            ).dropna(subset=["value"])
-            if not frame.empty:
-                raw_frames[asset] = frame
-                _store_raw(asset, phase, frame)
-            else:
-                info = yield_failures.get(asset, {})
-                url = info.get("url", yields_meta.get(asset, {}).get("url", ""))
-                reason = info.get("reason", "no_data")
-                failure_notes[note_keys.get(asset, f"{asset}:yield")] = f"parse_failed:{url},{reason}"
+    breadth_result = breadth_collector.collect(run_ts)
+    for asset, frame in breadth_result.frames.items():
+        existing = raw_frames.get(asset)
+        if existing is not None and not existing.empty:
+            combined = pd.concat([existing, frame], ignore_index=True)
         else:
-            info = yield_failures.get(asset, {})
-            url = info.get("url", yields_meta.get(asset, {}).get("url", ""))
-            reason = info.get("reason", "no_data")
-            failure_notes[note_keys.get(asset, f"{asset}:yield")] = f"parse_failed:{url},{reason}"
+            combined = frame
+        raw_frames[asset] = combined
+        _store_raw(asset, phase, combined)
+    failure_notes.update(breadth_result.notes)
+    failure_notes.setdefault("KOSPI:limit_up", f"parse_failed:{KRXBreadthCollector.MENU_ID},not_available")
+    failure_notes.setdefault("KOSPI:limit_down", f"parse_failed:{KRXBreadthCollector.MENU_ID},not_available")
+    failure_notes.setdefault("KOSPI:trin", f"parse_failed:{KRXBreadthCollector.MENU_ID},not_available")
+
+    rate_result = rate_collector.fetch(target_date)
+    for asset, frame in rate_result.frames.items():
+        raw_frames[asset] = frame
+        _store_raw(asset, phase, frame)
+    failure_notes.update(rate_result.notes)
 
     if getattr(client, "symbol_not_found", set()):
         metrics["symbol_not_found"] = sorted(client.symbol_not_found)
