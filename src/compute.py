@@ -43,14 +43,14 @@ def _debug_value(name: str, value: float, validator: Callable[[float], bool]) ->
 REQUIRED_KEYS = [
     "KOSPI:idx",
     "KOSDAQ:idx",
-    "KOSPI:adv",
-    "KOSPI:dec",
-    "KOSPI:unch",
-    "KOSDAQ:adv",
-    "KOSDAQ:dec",
-    "KOSDAQ:unch",
+    "KOSPI:advance",
+    "KOSPI:decline",
+    "KOSPI:unchanged",
+    "KOSDAQ:advance",
+    "KOSDAQ:decline",
+    "KOSDAQ:unchanged",
     "KOSPI:trin",
-    "KOSPI:turnover",
+    "KOSPI:trading_value",
     "KOSPI:limit_up",
     "KOSPI:limit_down",
     "K200:hv30",
@@ -59,13 +59,13 @@ REQUIRED_KEYS = [
     "SOX:ret_1w",
     "SOX:ret_1m",
     "USD/KRW:spot",
-    "DXY:proxy",
+    "DXY:idx",
     "2s10s_US:spread",
     "2s10s_KR:spread",
-    "UST:2y",
-    "UST:10y",
-    "KR:3y",
-    "KR:10y",
+    "UST2Y:yield",
+    "UST10Y:yield",
+    "KR3Y:yield",
+    "KR10Y:yield",
     "WTI:spot",
     "Brent:spot",
     "Gold:spot",
@@ -211,6 +211,30 @@ def _pct_change(series: pd.Series) -> float:
     return _change(series) / prev
 
 
+def _append_note(base: str, extra: str) -> str:
+    """노트를 합치는 간단한 도우미."""
+
+    if not extra:
+        return base
+    if not base:
+        return extra
+    if extra in base:
+        return base
+    return f"{base};{extra}"
+
+
+def _validate_range(value: float, lower: float | None, upper: float | None) -> bool:
+    """값이 지정된 범위 안에 들어가는지 검사한다."""
+
+    if np.isnan(value):
+        return True
+    if lower is not None and value < lower:
+        return False
+    if upper is not None and value > upper:
+        return False
+    return True
+
+
 def _record(
     ts_kst: str,
     asset: str,
@@ -257,25 +281,25 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     sox = _series_from_raw(raw, "SOX", "close")
     es = _series_from_raw(raw, "ES", "close")
     nq = _series_from_raw(raw, "NQ", "close")
-    dx = _series_from_raw(raw, "DX", "close")
+    dxy_series = _series_from_raw(raw, "DXY", "idx")
     usdkrw = _series_from_raw(raw, "USD/KRW", "close")
     kr3y = _series_from_raw(raw, "KR3Y", "yield")
     kr10y = _series_from_raw(raw, "KR10Y", "yield")
     ust2y = _series_from_raw(raw, "UST2Y", "yield")
     ust10y = _series_from_raw(raw, "UST10Y", "yield")
 
-    adv_kospi = _series_from_raw(raw, "KOSPI", "adv_count")
-    dec_kospi = _series_from_raw(raw, "KOSPI", "dec_count")
-    unch_kospi = _series_from_raw(raw, "KOSPI", "unch_count")
-    vol_adv = _series_from_raw(raw, "KOSPI", "adv_value")
-    vol_dec = _series_from_raw(raw, "KOSPI", "dec_value")
+    adv_kospi = _series_from_raw(raw, "KOSPI", "advance")
+    dec_kospi = _series_from_raw(raw, "KOSPI", "decline")
+    unch_kospi = _series_from_raw(raw, "KOSPI", "unchanged")
+    vol_adv = _series_from_raw(raw, "KOSPI", "advance_volume")
+    vol_dec = _series_from_raw(raw, "KOSPI", "decline_volume")
     limit_up = _series_from_raw(raw, "KOSPI", "limit_up")
     limit_down = _series_from_raw(raw, "KOSPI", "limit_down")
-    turnover = _series_from_raw(raw, "KOSPI", "turnover")
+    turnover = _series_from_raw(raw, "KOSPI", "trading_value")
 
-    adv_kosdaq = _series_from_raw(raw, "KOSDAQ", "adv_count")
-    dec_kosdaq = _series_from_raw(raw, "KOSDAQ", "dec_count")
-    unch_kosdaq = _series_from_raw(raw, "KOSDAQ", "unch_count")
+    adv_kosdaq = _series_from_raw(raw, "KOSDAQ", "advance")
+    dec_kosdaq = _series_from_raw(raw, "KOSDAQ", "decline")
+    unch_kosdaq = _series_from_raw(raw, "KOSDAQ", "unchanged")
 
     btc = _series_from_raw(raw, "BTC", "close")
     wti = _series_from_raw(raw, "WTI", "close")
@@ -316,32 +340,69 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
         ]
     )
 
+    validation_rules = {
+        ("KOSPI", "advance"): (0.0, None),
+        ("KOSPI", "decline"): (0.0, None),
+        ("KOSPI", "unchanged"): (0.0, None),
+        ("KOSPI", "limit_up"): (0.0, None),
+        ("KOSPI", "limit_down"): (0.0, None),
+        ("KOSPI", "trading_value"): (0.0, None),
+        ("KOSPI", "trin"): (0.1, 10.0),
+        ("KOSDAQ", "advance"): (0.0, None),
+        ("KOSDAQ", "decline"): (0.0, None),
+        ("KOSDAQ", "unchanged"): (0.0, None),
+        ("DXY", "idx"): (70.0, 130.0),
+        ("UST2Y", "yield"): (0.0, 20.0),
+        ("UST10Y", "yield"): (0.0, 20.0),
+        ("KR3Y", "yield"): (0.0, 20.0),
+        ("KR10Y", "yield"): (0.0, 20.0),
+        ("2s10s_US", "spread"): (-300.0, 300.0),
+        ("2s10s_KR", "spread"): (-300.0, 300.0),
+    }
+
     def add_simple(asset: str, key: str, bundle: SeriesBundle, unit: str = "count") -> None:
+        value = _latest(bundle.series)
+        change_abs = _change(bundle.series)
+        change_pct = _pct_change(bundle.series)
+        note_text = note(asset, key)
+        bounds = validation_rules.get((asset, key), (None, None))
+        if not _validate_range(value, *bounds):
+            logger.debug(
+                "compute::add_simple :: %s %s out of range (value=%.4f, bounds=%s)",
+                asset,
+                key,
+                value,
+                bounds,
+            )
+            note_text = _append_note(note_text, "range_violation")
+            value = float("nan")
+            change_abs = float("nan")
+            change_pct = float("nan")
         records.append(
             _record(
                 ts_kst,
                 asset,
                 key,
-                _latest(bundle.series),
+                value,
                 unit,
                 "1D",
-                _change(bundle.series),
-                _pct_change(bundle.series),
+                change_abs,
+                change_pct,
                 bundle.source,
                 bundle.quality,
                 bundle.url,
-                notes=note(asset, key),
+                notes=note_text,
             )
         )
 
-    add_simple("KOSPI", "adv", adv_kospi)
-    add_simple("KOSPI", "dec", dec_kospi)
-    add_simple("KOSPI", "unch", unch_kospi)
-    add_simple("KOSDAQ", "adv", adv_kosdaq)
-    add_simple("KOSDAQ", "dec", dec_kosdaq)
-    add_simple("KOSDAQ", "unch", unch_kosdaq)
-    add_simple("KOSPI", "limit_up", limit_up)
-    add_simple("KOSPI", "limit_down", limit_down)
+    add_simple("KOSPI", "advance", adv_kospi, unit="issues")
+    add_simple("KOSPI", "decline", dec_kospi, unit="issues")
+    add_simple("KOSPI", "unchanged", unch_kospi, unit="issues")
+    add_simple("KOSDAQ", "advance", adv_kosdaq, unit="issues")
+    add_simple("KOSDAQ", "decline", dec_kosdaq, unit="issues")
+    add_simple("KOSDAQ", "unchanged", unch_kosdaq, unit="issues")
+    add_simple("KOSPI", "limit_up", limit_up, unit="issues")
+    add_simple("KOSPI", "limit_down", limit_down, unit="issues")
 
     trin_value = float("nan")
     adv_cnt = _latest(adv_kospi.series)
@@ -350,6 +411,10 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     dec_val = _latest(vol_dec.series)
     if all(not np.isnan(v) and v for v in [adv_cnt, dec_cnt, adv_val, dec_val]):
         trin_value = (adv_cnt / dec_cnt) / (adv_val / dec_val)
+    trin_note = note("KOSPI", "trin")
+    if not _validate_range(trin_value, *validation_rules[("KOSPI", "trin")]):
+        trin_note = _append_note(trin_note, "range_violation")
+        trin_value = float("nan")
     records.append(
         _record(
             ts_kst,
@@ -363,24 +428,29 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
             vol_adv.source,
             vol_adv.quality,
             vol_adv.url,
-            notes=note("KOSPI", "trin"),
+            notes=trin_note,
         )
     )
 
+    trading_note = note("KOSPI", "trading_value")
+    trading_value = _latest(turnover.series)
+    if not _validate_range(trading_value, *validation_rules[("KOSPI", "trading_value")]):
+        trading_note = _append_note(trading_note, "range_violation")
+        trading_value = float("nan")
     records.append(
         _record(
             ts_kst,
             "KOSPI",
-            "turnover",
-            _latest(turnover.series),
-            "krw_bn",
+            "trading_value",
+            trading_value,
+            "KRW",
             "1D",
             _change(turnover.series),
             _pct_change(turnover.series),
             turnover.source,
             turnover.quality,
             turnover.url,
-            notes=note("KOSPI", "turnover"),
+            notes=trading_note,
         )
     )
 
@@ -473,65 +543,42 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
         ]
     )
 
-    records.append(
-        _record(
-            ts_kst,
-            "USD/KRW",
-            "spot",
-            _latest(usdkrw.series),
-            "krw",
-            "1D",
-            _change(usdkrw.series),
-            _pct_change(usdkrw.series),
-            usdkrw.source,
-            usdkrw.quality,
-            usdkrw.url,
-            notes=note("USD/KRW", "spot"),
-        )
-    )
+    add_simple("USD/KRW", "spot", usdkrw, unit="KRW")
+    add_simple("DXY", "idx", dxy_series, unit="idx")
 
-    dxy_value = _latest(dx.series)
-    records.append(
-        _record(
-            ts_kst,
-            "DXY",
-            "proxy",
-            dxy_value,
-            "index",
-            "1D",
-            float("nan"),
-            float("nan"),
-            dx.source or "KIS-proxy",
-            dx.quality or "primary",
-            dx.url,
-            notes=note("DXY", "proxy") or "proxy",
-        )
-    )
-
-    def yield_record(bundle: SeriesBundle, asset: str, key: str) -> None:
+    def yield_record(bundle: SeriesBundle, asset: str) -> None:
+        key = "yield"
         base_note = note(asset, key)
-        note_value = base_note or ("proxy" if asset == "UST" else "")
+        value = _latest(bundle.series)
+        change_abs = _change(bundle.series)
+        change_pct = _pct_change(bundle.series)
+        bounds = validation_rules.get((asset, key), (None, None))
+        if not _validate_range(value, *bounds):
+            base_note = _append_note(base_note, "range_violation")
+            value = float("nan")
+            change_abs = float("nan")
+            change_pct = float("nan")
         records.append(
             _record(
                 ts_kst,
                 asset,
                 key,
-                _latest(bundle.series),
+                value,
                 "pct",
                 "1D",
-                _change(bundle.series),
-                _pct_change(bundle.series),
+                change_abs,
+                change_pct,
                 bundle.source,
                 bundle.quality,
                 bundle.url,
-                notes=note_value,
+                notes=base_note,
             )
         )
 
-    yield_record(ust2y, "UST", "2y")
-    yield_record(ust10y, "UST", "10y")
-    yield_record(kr3y, "KR", "3y")
-    yield_record(kr10y, "KR", "10y")
+    yield_record(ust2y, "UST2Y")
+    yield_record(ust10y, "UST10Y")
+    yield_record(kr3y, "KR3Y")
+    yield_record(kr10y, "KR10Y")
 
     def add_spread(asset: str, key: str, long_leg: SeriesBundle, short_leg: SeriesBundle) -> None:
         """미국/한국 2s10s 스프레드를 계산하고 디버깅 정보를 남긴다."""
@@ -539,9 +586,13 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
         long_latest = _latest(long_leg.series)
         short_latest = _latest(short_leg.series)
         value = float("nan")
+        note_text = note(asset, key)
         if not np.isnan(long_latest) and not np.isnan(short_latest):
             value = (long_latest - short_latest) * 100.0
             _debug_value(f"{asset}:{key}", value, lambda v: abs(v) < 1000)
+        if not _validate_range(value, *validation_rules[(asset, key)]):
+            note_text = _append_note(note_text, "range_violation")
+            value = float("nan")
 
         combined_source = "+".join(
             sorted(
@@ -570,7 +621,7 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
                 combined_source or long_leg.source,
                 combined_quality,
                 combined_url,
-                notes=note(asset, key),
+                notes=note_text,
             )
         )
 
@@ -578,11 +629,11 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     add_spread("2s10s_KR", "spread", kr10y, kr3y)
 
     for bundle, asset, unit in [
-        (wti, "WTI", "usd"),
-        (brent, "Brent", "usd"),
-        (gold, "Gold", "usd"),
-        (copper, "Copper", "usd"),
-        (btc, "BTC", "usd"),
+        (wti, "WTI", "USD"),
+        (brent, "Brent", "USD"),
+        (gold, "Gold", "USD"),
+        (copper, "Copper", "USD"),
+        (btc, "BTC", "USD"),
     ]:
         records.append(
             _record(

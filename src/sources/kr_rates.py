@@ -33,6 +33,8 @@ class KRXKorRates:
 
     @staticmethod
     def _clean(series: pd.Series) -> pd.Series:
+        """숫자 문자열을 float로 변환한다."""
+
         return pd.to_numeric(series.astype(str).str.replace(",", ""), errors="coerce")
 
     def fetch(self, target: date) -> KrRatesResult:
@@ -42,16 +44,16 @@ class KRXKorRates:
             raw = self._client.fetch_json(self.MENU_ID, self.BLD, payload)
         except Exception as exc:  # pragma: no cover - 네트워크 의존
             message = f"parse_failed:{self.MENU_ID},{exc}"
-            notes["KR:3y"] = message
-            notes["KR:10y"] = message
+            notes["KR3Y:yield"] = message
+            notes["KR10Y:yield"] = message
             return KrRatesResult(frames={}, notes=notes)
 
         rows = raw.get("output") or raw.get("OutBlock_1") or []
         frame = pd.DataFrame(rows)
         if frame.empty:
             message = f"parse_failed:{self.MENU_ID},empty"
-            notes["KR:3y"] = message
-            notes["KR:10y"] = message
+            notes["KR3Y:yield"] = message
+            notes["KR10Y:yield"] = message
             return KrRatesResult(frames={}, notes=notes)
 
         ts = datetime.combine(target, dtime(hour=17, minute=0), tzinfo=KST)
@@ -59,16 +61,22 @@ class KRXKorRates:
 
         frames: Dict[str, pd.DataFrame] = {}
 
-        for alias, keyword, note_key in (("KR3Y", "3년", "KR:3y"), ("KR10Y", "10년", "KR:10y")):
+        for alias, keyword in (("KR3Y", "3년"), ("KR10Y", "10년")):
             subset = frame.loc[frame["ITM_TP_NM"].astype(str).str.contains(keyword, na=False)].copy()
             if subset.empty:
-                notes[note_key] = f"parse_failed:{self.MENU_ID},missing"
+                notes[f"{alias}:yield"] = f"parse_failed:{self.MENU_ID},missing"
                 continue
             subset.sort_values("ITM_TP_NM", inplace=True)
             latest = subset.iloc[-1]
             value = self._clean(pd.Series([latest.get("LST_ORD_BAS_YD")])).iloc[0]
             if pd.isna(value):
-                notes[note_key] = f"parse_failed:{self.MENU_ID},invalid"
+                notes[f"{alias}:yield"] = f"parse_failed:{self.MENU_ID},invalid"
+                continue
+            if not 0 <= float(value) <= 20:
+                logger.debug(
+                    "kr_rates::fetch :: suspicious value alias=%s value=%.4f", alias, float(value)
+                )
+                notes[f"{alias}:yield"] = f"range_violation:{url},0-20pct"
                 continue
             frames[alias] = pd.DataFrame(
                 {
@@ -77,9 +85,11 @@ class KRXKorRates:
                     "field": ["yield"],
                     "value": [float(value)],
                     "unit": ["pct"],
+                    "window": ["1D"],
                     "source": ["krx"],
                     "quality": ["final"],
                     "url": [url],
+                    "notes": [""],
                 }
             )
 

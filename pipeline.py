@@ -11,8 +11,10 @@ import pandas as pd
 from src import compute, reconcile
 from src.kis import KISClient, market
 from src.sources import commod_crypto
+from src.sources.dxy import DXYCollector
 from src.sources.krx_breadth import KRXBreadthCollector, determine_target
 from src.sources.kr_rates import KRXKorRates
+from src.sources.us_yields import USTYieldCollector
 from src.storage import append_log, cleanup_daily, write_daily, write_latest, write_raw
 from src.universe import load_universe
 from src.utils import KST, load_yaml
@@ -41,6 +43,8 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
     target_date, _ = determine_target(run_ts)
     breadth_collector = KRXBreadthCollector()
     rate_collector = KRXKorRates()
+    ust_collector = USTYieldCollector()
+    dxy_collector = DXYCollector()
 
     for asset in ["KOSPI", "KOSDAQ", "K200", "SPX", "NDX", "SOX"]:
         frame = market.index_series(client, asset)
@@ -54,17 +58,10 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
     futures_map = {
         "ES": config.get("futures", {}).get("es", "ES"),
         "NQ": config.get("futures", {}).get("nq", "NQ"),
-        "DX": config.get("futures", {}).get("dx", "DX"),
-        "UST2Y": config.get("futures", {}).get("ust2y", "ZT"),
-        "UST5Y": config.get("futures", {}).get("ust5y", "ZF"),
-        "UST10Y": config.get("futures", {}).get("ust10y", "ZN"),
     }
     for alias, symbol in futures_map.items():
-        unit = "bp" if alias in {"UST2Y", "UST5Y", "UST10Y"} else "pt"
+        unit = "pt"
         frame = market.futures_series(client, symbol, alias=alias, unit=unit)
-        if alias in {"UST2Y", "UST5Y", "UST10Y"} and not frame.empty:
-            frame = frame.copy()
-            frame["field"] = "yield"
         raw_frames[alias] = frame
         _store_raw(alias, phase, frame)
 
@@ -78,9 +75,6 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
         raw_frames[asset] = combined
         _store_raw(asset, phase, combined)
     failure_notes.update(breadth_result.notes)
-    failure_notes.setdefault("KOSPI:limit_up", f"parse_failed:{KRXBreadthCollector.MENU_ID},not_available")
-    failure_notes.setdefault("KOSPI:limit_down", f"parse_failed:{KRXBreadthCollector.MENU_ID},not_available")
-    failure_notes.setdefault("KOSPI:trin", f"parse_failed:{KRXBreadthCollector.MENU_ID},not_available")
 
     rate_result = rate_collector.fetch(target_date)
     for asset, frame in rate_result.frames.items():
@@ -88,13 +82,20 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
         _store_raw(asset, phase, frame)
     failure_notes.update(rate_result.notes)
 
+    ust_frames, ust_notes = ust_collector.collect(target_date)
+    for asset, frame in ust_frames.items():
+        raw_frames[asset] = frame
+        _store_raw(asset, phase, frame)
+    failure_notes.update(ust_notes)
+
+    dxy_frame, dxy_notes = dxy_collector.collect(target_date)
+    if not dxy_frame.empty:
+        raw_frames["DXY"] = dxy_frame
+        _store_raw("DXY", phase, dxy_frame)
+    failure_notes.update(dxy_notes)
+
     if getattr(client, "symbol_not_found", set()):
         metrics["symbol_not_found"] = sorted(client.symbol_not_found)
-
-    if raw_frames.get("UST2Y") is None or raw_frames["UST2Y"].empty:
-        failure_notes["UST:2y"] = "parse_failed:KIS,no_proxy_available"
-    if raw_frames.get("UST10Y") is None or raw_frames["UST10Y"].empty:
-        failure_notes["UST:10y"] = "parse_failed:KIS,no_proxy_available"
 
     commodities = commod_crypto.fetch()
     for asset, result in commodities.items():
