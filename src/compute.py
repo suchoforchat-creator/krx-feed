@@ -291,7 +291,7 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     adv_kospi = _series_from_raw(raw, "KOSPI", "advance")
     dec_kospi = _series_from_raw(raw, "KOSPI", "decline")
     unch_kospi = _series_from_raw(raw, "KOSPI", "unchanged")
-wwwㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈ    limit_up = _series_from_raw(raw, "KOSPI", "limit_up")
+    limit_up = _series_from_raw(raw, "KOSPI", "limit_up")
     limit_down = _series_from_raw(raw, "KOSPI", "limit_down")
     turnover = _series_from_raw(raw, "KOSPI", "trading_value")
     trin_series = _series_from_raw(raw, "KOSPI", "trin")
