@@ -73,7 +73,7 @@ class DXYCollector:
                 "notes": [note],
             }
         )
-        return DXYFrame(frame=frame, note=note or "ok")
+ㅈㅈ        return DXYFrame(frame=frame, note=note or "ok")
 
     def _fetch_marketwatch(self) -> float | None:
         try:
@@ -168,7 +168,7 @@ class DXYCollector:
                 source="tradingview",
                 quality="secondary",
                 url=TRADINGVIEW_URL,
-                note="fallback:tradingview",
+ㅈㅈ                note="fallback:tradingview",
                 target=target,
             )
             notes["DXY:idx"] = result.note or "fallback:tradingview"

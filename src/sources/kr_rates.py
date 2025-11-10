@@ -53,7 +53,7 @@ class KrRatesResult:
 
 
 class KRXKorRates:
-    MENU_ID = "MDC020104040401"
+ㅈㅈ    MENU_ID = "MDC020104040401"
     BLD = "dbms/MDC/STAT/standard/MDCSTAT11401"
 
     def __init__(self, client: KrxClient | None = None, session: requests.Session | None = None) -> None:
