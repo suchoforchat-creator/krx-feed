@@ -73,7 +73,7 @@ class DXYCollector:
                 "notes": [note],
             }
         )
-ㅈㅈ        return DXYFrame(frame=frame, note=note or "ok")
+        return DXYFrame(frame=frame, note=note or "ok")
 
     def _fetch_marketwatch(self) -> float | None:
         try:
