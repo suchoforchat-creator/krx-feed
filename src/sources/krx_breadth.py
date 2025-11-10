@@ -13,7 +13,7 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, time as dtime, timedelta
-ㅈㅈㅈfrom typing import Dict, Iterable, List, Tuple
+from typing import Dict, Iterable, List, Tuple
 
 import pandas as pd
 import requests
