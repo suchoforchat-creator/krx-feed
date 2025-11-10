@@ -8,7 +8,29 @@ from .client import KISClient
 
 
 def _inject_defaults(frame: pd.DataFrame, client: KISClient, unit: str, field: str, asset: str) -> pd.DataFrame:
+    if frame is None:
+        frame = pd.DataFrame()
+
     frame = frame.copy()
+
+    if frame.empty:
+        frame = pd.DataFrame(
+            columns=[
+                "ts_kst",
+                "value",
+                "asset",
+                "field",
+                "unit",
+                "source",
+                "quality",
+                "url",
+            ]
+        )
+
+    if "ts_kst" not in frame.columns:
+        frame["ts_kst"] = pd.Series(dtype="datetime64[ns, Asia/Seoul]")
+    if "value" not in frame.columns:
+        frame["value"] = pd.Series(dtype="float64")
     if "asset" not in frame.columns:
         frame["asset"] = asset
     if "field" not in frame.columns:
@@ -35,7 +57,7 @@ def fx_series(client: KISClient, name: str, periods: int = 120) -> pd.DataFrame:
 
 
 def futures_series(client: KISClient, name: str, periods: int = 120, alias: str | None = None, unit: str = "pt") -> pd.DataFrame:
-    frame = client.get_futures_series(name, periods)
+    frame = client.get_futures_series(name, periods, alias=alias)
     return _inject_defaults(frame, client, unit, "close", alias or name)
 
 
