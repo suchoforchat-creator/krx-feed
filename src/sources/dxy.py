@@ -168,7 +168,7 @@ class DXYCollector:
                 source="tradingview",
                 quality="secondary",
                 url=TRADINGVIEW_URL,
-ㅈㅈ                note="fallback:tradingview",
+                note="fallback:tradingview",
                 target=target,
             )
             notes["DXY:idx"] = result.note or "fallback:tradingview"
