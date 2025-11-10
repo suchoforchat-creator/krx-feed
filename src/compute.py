@@ -291,11 +291,10 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     adv_kospi = _series_from_raw(raw, "KOSPI", "advance")
     dec_kospi = _series_from_raw(raw, "KOSPI", "decline")
     unch_kospi = _series_from_raw(raw, "KOSPI", "unchanged")
-    vol_adv = _series_from_raw(raw, "KOSPI", "advance_volume")
-    vol_dec = _series_from_raw(raw, "KOSPI", "decline_volume")
-    limit_up = _series_from_raw(raw, "KOSPI", "limit_up")
+wwwㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈㅈ    limit_up = _series_from_raw(raw, "KOSPI", "limit_up")
     limit_down = _series_from_raw(raw, "KOSPI", "limit_down")
     turnover = _series_from_raw(raw, "KOSPI", "trading_value")
+    trin_series = _series_from_raw(raw, "KOSPI", "trin")
 
     adv_kosdaq = _series_from_raw(raw, "KOSDAQ", "advance")
     dec_kosdaq = _series_from_raw(raw, "KOSDAQ", "decline")
@@ -404,17 +403,14 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     add_simple("KOSPI", "limit_up", limit_up, unit="issues")
     add_simple("KOSPI", "limit_down", limit_down, unit="issues")
 
-    trin_value = float("nan")
-    adv_cnt = _latest(adv_kospi.series)
-    dec_cnt = _latest(dec_kospi.series)
-    adv_val = _latest(vol_adv.series)
-    dec_val = _latest(vol_dec.series)
-    if all(not np.isnan(v) and v for v in [adv_cnt, dec_cnt, adv_val, dec_val]):
-        trin_value = (adv_cnt / dec_cnt) / (adv_val / dec_val)
+    trin_value = _latest(trin_series.series)
     trin_note = note("KOSPI", "trin")
-    if not _validate_range(trin_value, *validation_rules[("KOSPI", "trin")]):
-        trin_note = _append_note(trin_note, "range_violation")
-        trin_value = float("nan")
+    if not np.isnan(trin_value):
+        if not _validate_range(trin_value, *validation_rules[("KOSPI", "trin")]):
+            trin_note = _append_note(trin_note, "range_violation")
+            trin_value = float("nan")
+    elif not trin_note:
+        trin_note = "upstream_missing:krx_trin"
     records.append(
         _record(
             ts_kst,
@@ -425,9 +421,9 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
             "1D",
             float("nan"),
             float("nan"),
-            vol_adv.source,
-            vol_adv.quality,
-            vol_adv.url,
+            trin_series.source,
+            trin_series.quality,
+            trin_series.url,
             notes=trin_note,
         )
     )
