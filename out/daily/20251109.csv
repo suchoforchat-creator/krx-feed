@@ -1,0 +1,32 @@
+ts_kst,asset,key,value,unit,window,change_abs,change_pct,source,quality,url,notes
+2025-11-09 22:39,KOSPI,idx,3953.76001,pt,1D,-72.689941,-0.018053,YahooFinance(^KS11),secondary,https://finance.yahoo.com/quote/^KS11,
+2025-11-09 22:39,KOSDAQ,idx,876.809998,pt,1D,-21.359985,-0.023782,YahooFinance(^KQ11),secondary,https://finance.yahoo.com/quote/^KQ11,
+2025-11-09 22:39,KOSPI,adv,,count,1D,,,KIS,primary,,"parse_failed:MDC0201020102,empty_frame"
+2025-11-09 22:39,KOSPI,dec,,count,1D,,,KIS,primary,,"parse_failed:MDC0201020102,empty_frame"
+2025-11-09 22:39,KOSPI,unch,,count,1D,,,KIS,primary,,"parse_failed:MDC0201020102,empty_frame"
+2025-11-09 22:39,KOSDAQ,adv,,count,1D,,,KIS,primary,,"parse_failed:MDC0201020102,empty_frame"
+2025-11-09 22:39,KOSDAQ,dec,,count,1D,,,KIS,primary,,"parse_failed:MDC0201020102,empty_frame"
+2025-11-09 22:39,KOSDAQ,unch,,count,1D,,,KIS,primary,,"parse_failed:MDC0201020102,empty_frame"
+2025-11-09 22:39,KOSPI,limit_up,,count,1D,,,KIS,primary,,"parse_failed:MDC0201020102,not_available"
+2025-11-09 22:39,KOSPI,limit_down,,count,1D,,,KIS,primary,,"parse_failed:MDC0201020102,not_available"
+2025-11-09 22:39,KOSPI,trin,,ratio,1D,,,KIS,primary,,"parse_failed:MDC0201020102,not_available"
+2025-11-09 22:39,KOSPI,turnover,,krw_bn,1D,,,KIS,primary,,"parse_failed:MDC0201020102,empty_frame"
+2025-11-09 22:39,K200,hv30,0.286467,vol,30D,,,YahooFinance(^KS200),secondary,https://finance.yahoo.com/quote/^KS200,
+2025-11-09 22:39,ES,basis,0.003708,ratio,1D,,,YahooFinance(ES=F),secondary,https://finance.yahoo.com/quote/ES=F,
+2025-11-09 22:39,NQ,basis,0.004247,ratio,1D,,,YahooFinance(NQ=F),secondary,https://finance.yahoo.com/quote/NQ=F,
+2025-11-09 22:39,SOX,ret_1w,-0.038915,return,1W,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
+2025-11-09 22:39,SOX,ret_1m,0.015666,return,1M,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
+2025-11-09 22:39,USD/KRW,spot,1458.0,krw,1D,10.099976,0.006976,YahooFinance(KRW=X),secondary,https://finance.yahoo.com/quote/KRW=X,
+2025-11-09 22:39,DXY,proxy,99.419998,index,1D,,,YahooFinance(DX=F),secondary,https://finance.yahoo.com/quote/DX=F,proxy
+2025-11-09 22:39,UST,2y,104.210938,pct,1D,0.015625,0.00015,YahooFinance(ZT=F),secondary,https://finance.yahoo.com/quote/ZT=F,proxy
+2025-11-09 22:39,UST,10y,112.859375,pct,1D,0.03125,0.000277,YahooFinance(ZN=F),secondary,https://finance.yahoo.com/quote/ZN=F,proxy
+2025-11-09 22:39,KR,3y,,pct,1D,,,KIS,primary,,"parse_failed:MDC020104040401,empty"
+2025-11-09 22:39,KR,10y,,pct,1D,,,KIS,primary,,"parse_failed:MDC020104040401,empty"
+2025-11-09 22:39,2s10s_US,spread,864.84375,bp,1D,,,YahooFinance(ZN=F)+YahooFinance(ZT=F),secondary,https://finance.yahoo.com/quote/ZN=F https://finance.yahoo.com/quote/ZT=F,
+2025-11-09 22:39,2s10s_KR,spread,,bp,1D,,,KIS,primary,,
+2025-11-09 22:39,WTI,spot,59.75,usd,1D,0.32,0.005384,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/CL=F,
+2025-11-09 22:39,Brent,spot,63.630001,usd,1D,0.25,0.003944,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BZ=F,
+2025-11-09 22:39,Gold,spot,4009.800049,usd,1D,29.900146,0.007513,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/GC=F,
+2025-11-09 22:39,Copper,spot,4.957,usd,1D,0.0115,0.002325,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/HG=F,
+2025-11-09 22:39,BTC,spot,102619.023438,usd,1D,336.90625,0.003294,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
+2025-11-09 22:39,BTC,corr20,0.523457,corr,20D,,,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
