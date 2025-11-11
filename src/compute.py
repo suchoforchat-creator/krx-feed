@@ -576,16 +576,34 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     yield_record(kr3y, "KR3Y")
     yield_record(kr10y, "KR10Y")
 
-    def add_spread(asset: str, key: str, long_leg: SeriesBundle, short_leg: SeriesBundle) -> None:
+    def add_spread(
+        asset: str,
+        key: str,
+        long_leg: SeriesBundle,
+        long_name: str,
+        short_leg: SeriesBundle,
+        short_name: str,
+    ) -> None:
         """미국/한국 2s10s 스프레드를 계산하고 디버깅 정보를 남긴다."""
 
         long_latest = _latest(long_leg.series)
         short_latest = _latest(short_leg.series)
         value = float("nan")
         note_text = note(asset, key)
-        if not np.isnan(long_latest) and not np.isnan(short_latest):
+        missing_parts: list[str] = []
+        if np.isnan(long_latest):
+            missing_parts.append(long_name)
+        if np.isnan(short_latest):
+            missing_parts.append(short_name)
+        if not missing_parts:
             value = (long_latest - short_latest) * 100.0
             _debug_value(f"{asset}:{key}", value, lambda v: abs(v) < 1000)
+            note_text = _append_note(note_text, "ok")
+        else:
+            note_text = _append_note(
+                note_text,
+                f"upstream_missing:{'|'.join(sorted(missing_parts))}",
+            )
         if not _validate_range(value, *validation_rules[(asset, key)]):
             note_text = _append_note(note_text, "range_violation")
             value = float("nan")
@@ -621,8 +639,8 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
             )
         )
 
-    add_spread("2s10s_US", "spread", ust10y, ust2y)
-    add_spread("2s10s_KR", "spread", kr10y, kr3y)
+    add_spread("2s10s_US", "spread", ust10y, "UST10Y", ust2y, "UST2Y")
+    add_spread("2s10s_KR", "spread", kr10y, "KR10Y", kr3y, "KR3Y")
 
     for bundle, asset, unit in [
         (wti, "WTI", "USD"),
