@@ -50,6 +50,8 @@ def test_upsert_runs_without_time_guard(tmp_path: Path) -> None:
     # 디버그 로그에 비활성화 메시지가 남는지도 확인합니다.
     assert any(step["message"] == "시간 가드 비활성화" for step in report.steps)
 
+    assert not history_path.exists()
+    assert any(step["message"].startswith("시간 가드") for step in report.steps)
 
 def test_upsert_creates_row(tmp_path: Path) -> None:
     latest_path = tmp_path / "out" / "latest.csv"
