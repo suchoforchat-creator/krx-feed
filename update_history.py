@@ -27,7 +27,7 @@ KST = timezone(timedelta(hours=9))
 
 # 17시 배치가 동작해야 하는 시간 구간입니다. (16:50 ~ 17:30)
 RUN_WINDOW_START = time(16, 50)
-RUN_WINDOW_END = time(17, 30)
+RUN_WINDOW_END = time(23, 30)
 
 # history.csv에 기록할 컬럼 순서입니다. (요구사항 그대로 유지)
 HISTORY_COLUMNS: List[str] = [
