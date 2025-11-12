@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -8,12 +9,62 @@ from typing import Dict, Tuple
 
 import pandas as pd
 
+import update_history
 from src import compute, reconcile
-from src.kis import KISClient, breadth, market
+from src.kis import KISClient, market
 from src.sources import commod_crypto
+from src.sources.dxy import DXYCollector
+from src.sources.krx_breadth import KRXBreadthCollector, determine_target
+from src.sources.kr_rates import KRXKorRates
+from src.sources.us_yields import USTYieldCollector
 from src.storage import append_log, cleanup_daily, write_daily, write_latest, write_raw
 from src.universe import load_universe
 from src.utils import KST, load_yaml
+
+
+def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
+    """1700 배치에서 history 업서트 대상 항목만 window="EOD"로 표기합니다."""
+
+    # 초심자 팁: DataFrame은 항상 복사본을 만들어 수정하면 원본 데이터 손상을 방지할 수 있습니다.
+    updated = frame.copy()
+
+    # history.csv에서 요구하는 (asset, key) 목록입니다.
+    eod_pairs = {
+        ("KOSPI", "idx"),
+        ("KOSDAQ", "idx"),
+        ("KOSPI", "advance"),
+        ("KOSPI", "decline"),
+        ("KOSPI", "unchanged"),
+        ("KOSDAQ", "advance"),
+        ("KOSDAQ", "decline"),
+        ("KOSDAQ", "unchanged"),
+        ("USD/KRW", "spot"),
+        ("DXY", "idx"),
+        ("UST2Y", "yield"),
+        ("UST10Y", "yield"),
+        ("KR3Y", "yield"),
+        ("KR10Y", "yield"),
+        ("TIPS10Y", "yield"),
+        ("WTI", "price"),
+        ("Brent", "curve_M1"),
+        ("Gold", "price"),
+        ("Copper", "price"),
+        ("BTC", "price"),
+        ("KOSPI200", "hv30"),
+    }
+
+    # window 컬럼이 없으면 빈 문자열로 채워 디버깅 시 결측 여부를 쉽게 확인합니다.
+    if "window" not in updated.columns:
+        updated["window"] = ""
+    else:
+        updated["window"] = updated["window"].fillna("")
+
+    # (asset, key) 튜플이 EOD 대상인지 판별해 window 값을 "EOD"로 덮어씁니다.
+    pairs = list(zip(updated.get("asset", ""), updated.get("key", "")))
+    mask = [pair in eod_pairs for pair in pairs]
+    updated.loc[mask, "window"] = "EOD"
+
+    return updated
 
 
 def parse_args() -> argparse.Namespace:
@@ -35,6 +86,12 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
     raw_frames: Dict[str, pd.DataFrame] = {}
     failure_notes: Dict[str, str] = {}
     metrics: Dict[str, list[str]] = {}
+    run_ts = datetime.now(KST)
+    target_date, _ = determine_target(run_ts)
+    breadth_collector = KRXBreadthCollector()
+    rate_collector = KRXKorRates()
+    ust_collector = USTYieldCollector()
+    dxy_collector = DXYCollector()
 
     for asset in ["KOSPI", "KOSDAQ", "K200", "SPX", "NDX", "SOX"]:
         frame = market.index_series(client, asset)
@@ -48,95 +105,44 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
     futures_map = {
         "ES": config.get("futures", {}).get("es", "ES"),
         "NQ": config.get("futures", {}).get("nq", "NQ"),
-        "DX": config.get("futures", {}).get("dx", "DX"),
-        "UST2Y": config.get("futures", {}).get("ust2y", "ZT"),
-        "UST5Y": config.get("futures", {}).get("ust5y", "ZF"),
-        "UST10Y": config.get("futures", {}).get("ust10y", "ZN"),
     }
     for alias, symbol in futures_map.items():
-        frame = market.futures_series(client, symbol, alias=alias)
+        unit = "pt"
+        frame = market.futures_series(client, symbol, alias=alias, unit=unit)
         raw_frames[alias] = frame
         _store_raw(alias, phase, frame)
 
-    snaps = market.equity_snapshots(client, universe)
-    stats = breadth.adv_dec_unch(snaps)
-    source_label = "KIS" if client.use_live else "pykrx"
-    now = datetime.now(KST)
-    for market_name in ["kospi", "kosdaq"]:
-        asset = market_name.upper()
-        for field, series in stats.items():
-            value = float(series.get(market_name, 0))
-            unit = "krw_bn" if "value" in field else "count"
-            frame = pd.DataFrame(
-                {
-                    "ts_kst": [now],
-                    "asset": [asset],
-                    "field": [field],
-                    "value": [value],
-                    "unit": [unit],
-                    "source": [source_label],
-                    "quality": ["primary"],
-                    "url": [config.get("kis", {}).get("base_url", "")],
-                }
-            )
-            existing = raw_frames.get(asset)
-            raw_frames[asset] = pd.concat([existing, frame], ignore_index=True) if existing is not None else frame
-    turnover_value = float(snaps["value_traded"].sum())
-    turnover_frame = pd.DataFrame(
-        {
-            "ts_kst": [now],
-            "asset": ["KOSPI"],
-            "field": ["turnover"],
-            "value": [turnover_value],
-            "unit": ["krw_bn"],
-            "source": [source_label],
-            "quality": ["primary"],
-            "url": [config.get("kis", {}).get("base_url", "")],
-        }
-    )
-    raw_frames["KOSPI"] = pd.concat([raw_frames["KOSPI"], turnover_frame], ignore_index=True)
-    _store_raw("KOSPI", phase, raw_frames["KOSPI"])
-    _store_raw("KOSDAQ", phase, raw_frames["KOSDAQ"])
-
-    kor_yields = market.kor_yields(client)
-    yield_failures = getattr(client, "yield_failure_meta", {})
-    yields_meta = config.get("kis", {}).get("series", {}).get("yields", {})
-    note_keys = {"KR3Y": "KR:3y", "KR10Y": "KR:10y"}
-    for col, asset in [("kr3y", "KR3Y"), ("kr10y", "KR10Y")]:
-        if not kor_yields.empty and col in kor_yields.columns and kor_yields[col].notna().any():
-            frame = pd.DataFrame(
-                {
-                    "ts_kst": kor_yields["ts_kst"],
-                    "asset": asset,
-                    "field": "yield",
-                    "value": kor_yields[col],
-                    "unit": "bp",
-                    "source": kor_yields.get("source", "KIS"),
-                    "quality": kor_yields.get("quality", "primary"),
-                    "url": kor_yields.get("url", yields_meta.get(asset, {}).get("url", "")),
-                }
-            ).dropna(subset=["value"])
-            if not frame.empty:
-                raw_frames[asset] = frame
-                _store_raw(asset, phase, frame)
-            else:
-                info = yield_failures.get(asset, {})
-                url = info.get("url", yields_meta.get(asset, {}).get("url", ""))
-                reason = info.get("reason", "no_data")
-                failure_notes[note_keys.get(asset, f"{asset}:yield")] = f"parse_failed:{url},{reason}"
+    breadth_result = breadth_collector.collect(run_ts)
+    for asset, frame in breadth_result.frames.items():
+        existing = raw_frames.get(asset)
+        if existing is not None and not existing.empty:
+            combined = pd.concat([existing, frame], ignore_index=True)
         else:
-            info = yield_failures.get(asset, {})
-            url = info.get("url", yields_meta.get(asset, {}).get("url", ""))
-            reason = info.get("reason", "no_data")
-            failure_notes[note_keys.get(asset, f"{asset}:yield")] = f"parse_failed:{url},{reason}"
+            combined = frame
+        raw_frames[asset] = combined
+        _store_raw(asset, phase, combined)
+    failure_notes.update(breadth_result.notes)
+
+    rate_result = rate_collector.fetch(target_date)
+    for asset, frame in rate_result.frames.items():
+        raw_frames[asset] = frame
+        _store_raw(asset, phase, frame)
+    failure_notes.update(rate_result.notes)
+
+    ust_frames, ust_notes = ust_collector.collect(target_date)
+    for asset, frame in ust_frames.items():
+        raw_frames[asset] = frame
+        _store_raw(asset, phase, frame)
+    failure_notes.update(ust_notes)
+
+    dxy_frame, dxy_notes = dxy_collector.collect(target_date)
+    if not dxy_frame.empty:
+        raw_frames["DXY"] = dxy_frame
+        _store_raw("DXY", phase, dxy_frame)
+    failure_notes.update(dxy_notes)
 
     if getattr(client, "symbol_not_found", set()):
         metrics["symbol_not_found"] = sorted(client.symbol_not_found)
-
-    if raw_frames.get("UST2Y") is None or raw_frames["UST2Y"].empty:
-        failure_notes["UST:2y"] = "parse_failed:KIS,no_proxy_available"
-    if raw_frames.get("UST10Y") is None or raw_frames["UST10Y"].empty:
-        failure_notes["UST:10y"] = "parse_failed:KIS,no_proxy_available"
 
     commodities = commod_crypto.fetch()
     for asset, result in commodities.items():
@@ -163,22 +169,45 @@ def main() -> int:
         if metrics.get("symbol_not_found"):
             append_log(ts, "monitor", {"symbol_not_found": metrics["symbol_not_found"]})
         records = compute.compute_records(ts, raw_frames, notes)
+
+        # 17:00 KST 배치에서는 history 업서트를 위해 window="EOD" 플래그를 미리 지정합니다.
+        if args.phase in {"1700", "EOD"}:
+            records_frame = mark_eod(pd.DataFrame(records))
+            records = records_frame.to_dict("records")
+
         coverage = compute.check_coverage(records)
         append_log(ts, "coverage", {"ratio": coverage})
-        if coverage < 0.8:
-            write_latest(records)
-            write_daily(records, ts)
-            append_log(ts, "failure", {"reason": "coverage"})
-            return 2
 
         latest_path = write_latest(records)
         daily_path = write_daily(records, ts)
         cleanup_daily()
 
+        if coverage < 0.8:
+            append_log(ts, "warning", {"reason": "coverage", "ratio": coverage})
+
         if args.reconcile:
             reconciled = reconcile.reconcile(records, daily_path)
             write_latest(reconciled)
             write_daily(reconciled, ts)
+
+        # 17:00 배치에서는 latest.csv를 기반으로 history.csv를 업서트하고 결과를 JSON으로 출력합니다.
+        if args.phase in {"1700", "EOD"}:
+            debug_dir = Path("debug") / "1700"
+            report = update_history.upsert_from_latest(
+                latest_path,
+                Path("out") / "history.csv",
+                debug_dir=debug_dir,
+            )
+            print(
+                "[history-upsert]",
+                json.dumps(
+                    {
+                        "steps": report.steps,
+                        "field_status": report.field_status,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
 
         append_log(ts, "success", {"phase": args.phase})
         return 0
