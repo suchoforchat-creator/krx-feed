@@ -7,11 +7,10 @@ history.csv에 1행으로 업서트(upsert)하는 작업을 담당합니다. 초
 
 from __future__ import annotations
 
-import argparse
 import json
 import shutil
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Dict, Iterable, List, Optional, Tuple
 
@@ -24,10 +23,6 @@ import pandas as pd
 
 # 한국 표준시(KST)는 UTC+9 입니다. datetime.now(KST)로 현재 KST 시간을 구할 수 있습니다.
 KST = timezone(timedelta(hours=9))
-
-# 17시 배치가 동작해야 하는 시간 구간입니다. (16:50 ~ 17:30)
-RUN_WINDOW_START = time(16, 50)
-RUN_WINDOW_END = time(23, 30)
 
 # history.csv에 기록할 컬럼 순서입니다. (요구사항 그대로 유지)
 HISTORY_COLUMNS: List[str] = [
@@ -138,23 +133,6 @@ class DebugReport:
 # 내부 유틸리티 함수
 # ---------------------------------------------------------------------------
 
-def _within_run_window(now: datetime, debug: DebugReport) -> bool:
-    """현재 시간이 17시 배치 구간에 있는지 확인합니다."""
-
-    current_time = now.astimezone(KST).time()
-    start = RUN_WINDOW_START
-    end = RUN_WINDOW_END
-    in_window = start <= current_time <= end
-    debug.log(
-        "시간 가드 검사",
-        now_kst=now.isoformat(),
-        window_start=start.isoformat(),
-        window_end=end.isoformat(),
-        in_window=in_window,
-    )
-    return in_window
-
-
 def _load_latest(latest_path: Path, debug: DebugReport) -> pd.DataFrame:
     """latest.csv를 안전하게 로드하고 기본 컬럼을 확인합니다."""
 
@@ -174,30 +152,31 @@ def _load_latest(latest_path: Path, debug: DebugReport) -> pd.DataFrame:
 
     # 날짜 비교를 위해 KST 기준 날짜 컬럼을 추가합니다.
     frame["ts_kst"] = pd.to_datetime(frame["ts_kst"], errors="coerce")
+    frame["window"] = frame["window"].fillna("")
     frame["date_kst"] = frame["ts_kst"].dt.date
     return frame
 
 
 def _choose_target_date(frame: pd.DataFrame, debug: DebugReport) -> Optional[date]:
-    """업서트 대상 날짜를 고릅니다. EOD가 없으면 ANY window로 폴백합니다."""
+    """EOD가 있으면 해당 날짜를, 없으면 ANY window 중 가장 최근 날짜를 선택합니다."""
 
     if frame.empty:
         return None
 
     working = frame.dropna(subset=["ts_kst"]).copy()
     if working.empty:
-        debug.log("유효한 타임스탬프가 없어 업서트를 종료합니다")
+        debug.log("유효한 타임스탬프가 없어 target_date를 정하지 못했습니다")
         return None
 
     eod_rows = working[working["window"] == "EOD"]
     if not eod_rows.empty:
         latest_date = eod_rows["date_kst"].max()
-        debug.log("EOD 기준 target_date 선택", target_date=str(latest_date))
+        debug.log("EOD 기준 target_date 선택", target_date=latest_date)
         return latest_date
 
-    latest_date = working["date_kst"].max()
-    debug.log("EOD 없음 → ANY window 폴백 target_date", target_date=str(latest_date))
-    return latest_date
+    fallback = working["date_kst"].max()
+    debug.log("EOD 없음 → ANY window 폴백 target_date", target_date=fallback)
+    return fallback
 
 
 def _validate_value(column: str, value: float) -> bool:
@@ -217,37 +196,43 @@ def _select_latest_record(
     key: str,
     target_date: date,
     debug: DebugReport,
-) -> Optional[pd.Series]:
-    """특정 자산/키의 target_date 레코드 중 가장 마지막 값을 선택합니다."""
+) -> Tuple[Optional[pd.Series], str]:
+    """특정 자산/키의 target_date 레코드 중 마지막 값을 선택하고 window를 함께 반환합니다."""
 
-    same_day = frame[
+    column = LATEST_TO_HISTORY.get((asset, key), f"{asset}:{key}")
+    subset = frame[
         (frame["asset"] == asset)
         & (frame["key"] == key)
         & (frame["date_kst"] == target_date)
     ]
 
-    if same_day.empty:
-        debug.mark_field(LATEST_TO_HISTORY.get((asset, key), f"{asset}:{key}"), "missing")
-        return None
+    if subset.empty:
+        debug.mark_field(column, "missing", reason="no_record_for_date")
+        return None, ""
 
-    eod_only = same_day[same_day["window"] == "EOD"]
-    filtered = eod_only if not eod_only.empty else same_day
+    eod = subset[subset["window"] == "EOD"]
+    candidates = eod if not eod.empty else subset
+    if eod.empty:
+        debug.log(
+            "EOD 없음 → ANY window 사용",
+            asset=asset,
+            key=key,
+            target_date=str(target_date),
+            candidates=len(candidates),
+        )
 
-    if filtered.empty:
-        debug.mark_field(LATEST_TO_HISTORY.get((asset, key), f"{asset}:{key}"), "missing")
-        return None
-
-    filtered = filtered.sort_values("ts_kst")
-    chosen = filtered.iloc[-1]
+    candidates = candidates.sort_values("ts_kst")
+    chosen = candidates.iloc[-1]
+    window_used = str(chosen.get("window", ""))
     debug.log(
         "레코드 선택",
         asset=asset,
         key=key,
         ts=str(chosen.get("ts_kst")),
         value=str(chosen.get("value")),
-        window=str(chosen.get("window")),
+        window=window_used,
     )
-    return chosen
+    return chosen, window_used
 
 
 def _build_history_row(
@@ -264,7 +249,7 @@ def _build_history_row(
     qualities: List[str] = []
 
     for (asset, key), column in LATEST_TO_HISTORY.items():
-        record = _select_latest_record(frame, asset, key, target_date, debug)
+        record, window_used = _select_latest_record(frame, asset, key, target_date, debug)
         if record is None:
             continue
 
@@ -287,7 +272,14 @@ def _build_history_row(
         quality_text = str(record.get("quality", "")).strip().lower()
         if quality_text and quality_text != "nan":
             qualities.append(quality_text)
-        debug.mark_field(column, "ok", raw=value, source=record.get("source"))
+        status = "ok_eod" if window_used == "EOD" else "ok_any"
+        debug.mark_field(
+            column,
+            status,
+            raw=value,
+            source=record.get("source"),
+            window=window_used,
+        )
 
     if sources:
         tags = sorted({src.split("|")[0] for src in sources if src})
@@ -303,6 +295,22 @@ def _build_history_row(
         row["quality"] = ""
 
     debug.log("row 구성 완료", src_tag=row["src_tag"], quality=row["quality"])
+    return row
+
+
+def _build_empty_history_row(target_date: date, debug: DebugReport) -> Dict[str, str]:
+    """latest.csv가 비어 있을 때 사용할 빈 history 행을 만듭니다."""
+
+    row: Dict[str, str] = {column: "" for column in HISTORY_COLUMNS}
+    row["time_kst"] = f"{target_date} {EOD_TIME_STR}"
+
+    # 초심자가 디버깅할 수 있도록 각 필드가 왜 비었는지 상태를 기록합니다.
+    for column in HISTORY_COLUMNS:
+        if column == "time_kst":
+            continue
+        debug.mark_field(column, "missing_latest", reason="empty_latest_frame")
+
+    debug.log("latest 비어있음 → 빈 history 행 생성", target_date=str(target_date))
     return row
 
 
@@ -362,28 +370,29 @@ def upsert_from_latest(
     latest_path = Path(latest_path)
     history_path = Path(history_path)
     now = now.astimezone(KST) if now else datetime.now(KST)
-
-    if not _within_run_window(now, debug):
-        debug.log("시간 조건을 만족하지 않아 업서트를 종료합니다")
-        if debug_dir:
-            debug.dump(Path(debug_dir) / "history_upsert_skipped.json")
-        return debug
+    debug.log("시간 가드 비활성화", now_kst=now.isoformat())
 
     latest_frame = _load_latest(latest_path, debug)
+
+    debug_filename: Optional[str] = None
     if latest_frame.empty:
-        debug.log("latest 데이터가 없어 업서트를 종료합니다")
-        if debug_dir:
-            debug.dump(Path(debug_dir) / "history_upsert_no_latest.json")
-        return debug
-
-    target_date = _choose_target_date(latest_frame, debug)
-    if target_date is None:
-        debug.log("target_date를 찾지 못해 업서트를 종료합니다")
-        if debug_dir:
-            debug.dump(Path(debug_dir) / "history_upsert_no_target.json")
-        return debug
-
-    row = _build_history_row(latest_frame, target_date, debug)
+        # latest.csv 자체가 비어 있으면 실행 시각(now) 기반으로 target_date를 선택합니다.
+        target_date = now.date()
+        debug.log(
+            "latest 데이터 없음 → 실행 시각 날짜 사용",
+            target_date=str(target_date),
+        )
+        row = _build_empty_history_row(target_date, debug)
+        debug_filename = f"history_upsert_empty_{target_date}.json"
+    else:
+        target_date = _choose_target_date(latest_frame, debug)
+        if target_date is None:
+            debug.log("target_date를 찾지 못해 업서트를 종료합니다")
+            if debug_dir:
+                debug.dump(Path(debug_dir) / "history_upsert_no_target.json")
+            return debug
+        row = _build_history_row(latest_frame, target_date, debug)
+        debug_filename = f"history_upsert_{target_date}.json"
 
     history_frame = _load_history(history_path, debug)
     mask = history_frame["time_kst"].astype(str) == row["time_kst"]
@@ -400,32 +409,25 @@ def upsert_from_latest(
     _atomic_write(history_frame, history_path)
     debug.log("history.csv 업서트 완료", path=str(history_path))
 
-    if debug_dir:
-        debug.dump(Path(debug_dir) / f"history_upsert_{target_date}.json")
+    if debug_dir and debug_filename:
+        debug.dump(Path(debug_dir) / debug_filename)
 
     return debug
 
 
-def main() -> None:
-    """CLI 진입점: argparse를 통해 경로를 받아 업서트를 실행합니다."""
+if __name__ == "__main__":
+    # CLI로 직접 실행할 때 사용할 수 있는 편의 엔트리포인트입니다.
+    import argparse
 
-    parser = argparse.ArgumentParser(description="history.csv 업서트 도구")
-    parser.add_argument("--latest", default="out/latest.csv", help="latest.csv 경로")
-    parser.add_argument("--history", default="out/history.csv", help="history.csv 경로")
-    parser.add_argument(
-        "--debug-dir",
-        default=None,
-        help="디버그 JSON을 저장할 디렉터리(예: debug/1700)",
-    )
+    parser = argparse.ArgumentParser(description="latest.csv → history.csv 업서트 도우미")
+    parser.add_argument("--latest", default="out/latest.csv")
+    parser.add_argument("--history", default="out/history.csv")
+    parser.add_argument("--debug-dir", default=None)
     args = parser.parse_args()
 
     report = upsert_from_latest(args.latest, args.history, debug_dir=args.debug_dir)
     print(json.dumps({"steps": report.steps, "field_status": report.field_status}, ensure_ascii=False))
 
 
-__all__ = ["upsert_from_latest", "HISTORY_COLUMNS", "LATEST_TO_HISTORY", "DebugReport", "main"]
-
-
-if __name__ == "__main__":
-    main()
+__all__ = ["upsert_from_latest", "HISTORY_COLUMNS", "LATEST_TO_HISTORY", "DebugReport"]
 

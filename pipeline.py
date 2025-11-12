@@ -22,6 +22,51 @@ from src.universe import load_universe
 from src.utils import KST, load_yaml
 
 
+def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
+    """1700 배치에서 history 업서트 대상 항목만 window="EOD"로 표기합니다."""
+
+    # 초심자 팁: DataFrame은 항상 복사본을 만들어 수정하면 원본 데이터 손상을 방지할 수 있습니다.
+    updated = frame.copy()
+
+    # history.csv에서 요구하는 (asset, key) 목록입니다.
+    eod_pairs = {
+        ("KOSPI", "idx"),
+        ("KOSDAQ", "idx"),
+        ("KOSPI", "advance"),
+        ("KOSPI", "decline"),
+        ("KOSPI", "unchanged"),
+        ("KOSDAQ", "advance"),
+        ("KOSDAQ", "decline"),
+        ("KOSDAQ", "unchanged"),
+        ("USD/KRW", "spot"),
+        ("DXY", "idx"),
+        ("UST2Y", "yield"),
+        ("UST10Y", "yield"),
+        ("KR3Y", "yield"),
+        ("KR10Y", "yield"),
+        ("TIPS10Y", "yield"),
+        ("WTI", "price"),
+        ("Brent", "curve_M1"),
+        ("Gold", "price"),
+        ("Copper", "price"),
+        ("BTC", "price"),
+        ("KOSPI200", "hv30"),
+    }
+
+    # window 컬럼이 없으면 빈 문자열로 채워 디버깅 시 결측 여부를 쉽게 확인합니다.
+    if "window" not in updated.columns:
+        updated["window"] = ""
+    else:
+        updated["window"] = updated["window"].fillna("")
+
+    # (asset, key) 튜플이 EOD 대상인지 판별해 window 값을 "EOD"로 덮어씁니다.
+    pairs = list(zip(updated.get("asset", ""), updated.get("key", "")))
+    mask = [pair in eod_pairs for pair in pairs]
+    updated.loc[mask, "window"] = "EOD"
+
+    return updated
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="KRX feed pipeline")
     parser.add_argument("--phase", required=True)
@@ -169,10 +214,12 @@ def main() -> int:
         if metrics.get("symbol_not_found"):
             append_log(ts, "monitor", {"symbol_not_found": metrics["symbol_not_found"]})
         records = compute.compute_records(ts, raw_frames, notes)
+
+        # 17:00 KST 배치에서는 history 업서트를 위해 window="EOD" 플래그를 미리 지정합니다.
         if args.phase in {"1700", "EOD"}:
-            records_df = pd.DataFrame(records)
-            records_df = mark_eod(records_df)
-            records = records_df.to_dict("records")
+            records_frame = mark_eod(pd.DataFrame(records))
+            records = records_frame.to_dict("records")
+
         coverage = compute.check_coverage(records)
         append_log(ts, "coverage", {"ratio": coverage})
 
@@ -192,16 +239,20 @@ def main() -> int:
             write_latest(reconciled)
             write_daily(reconciled, ts)
 
+        # 17:00 배치에서는 latest.csv를 기반으로 history.csv를 업서트하고 결과를 JSON으로 출력합니다.
         if args.phase in {"1700", "EOD"}:
-            debug_report = update_history.upsert_from_latest(
-                "out/latest.csv", "out/history.csv", debug_dir="debug/1700"
+            debug_dir = Path("debug") / "1700"
+            report = update_history.upsert_from_latest(
+                latest_path,
+                Path("out") / "history.csv",
+                debug_dir=debug_dir,
             )
             print(
                 "[history-upsert]",
                 json.dumps(
                     {
-                        "steps": debug_report.steps,
-                        "field_status": debug_report.field_status,
+                        "steps": report.steps,
+                        "field_status": report.field_status,
                     },
                     ensure_ascii=False,
                 ),
