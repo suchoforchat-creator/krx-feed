@@ -31,7 +31,8 @@ jobs:
       - run: |
           git config user.name 'bot'
           git config user.email 'bot@users.noreply.github.com'
-          git add out/latest.csv out/daily || true
+          # 초심자 팁: history.csv 등 새 파일이 생길 수 있으므로 폴더 전체를 스테이징합니다.
+          git add -A out/ || true
           git diff --cached --quiet || git commit -m "0730 snapshot $(date -u +%F)"
           git push
 
@@ -52,6 +53,16 @@ jobs:
       - run: |
           git config user.name 'bot'
           git config user.email 'bot@users.noreply.github.com'
-          git add out/latest.csv out/daily || true
+          # history.csv가 새로 생성되더라도 빠지지 않도록 out/ 디렉터리를 통째로 스테이징합니다.
+          git add -A out/ || true
           git diff --cached --quiet || git commit -m "1700 final $(date -u +%F)"
-          git push
+          git push || true
+
+      - name: Upload history debug
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: history-debug-1700
+          path: |
+            debug/1700/*.json
+          if-no-files-found: ignore
