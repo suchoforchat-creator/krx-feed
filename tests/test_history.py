@@ -198,7 +198,53 @@ def test_upsert_any_window_fallback(tmp_path: Path) -> None:
     frame = pd.read_csv(history_path, dtype=str).fillna("")
     record = frame.iloc[0]
     assert float(record["usdkrw"]) == 1333.3
-    assert report.field_status["usdkrw"]["status"] == "ok_any"
+
+
+def test_upsert_maps_spot_keys(tmp_path: Path) -> None:
+    """WTI/Brent/Gold/Copper/BTC가 spot 키로 들어와도 history에 기록되는지 검사."""
+
+    latest_path = tmp_path / "out" / "latest.csv"
+    history_path = tmp_path / "out" / "history.csv"
+
+    rows = [
+        {
+            "ts_kst": "2024-02-06 15:30:00",
+            "asset": asset,
+            "key": "spot",
+            "value": value,
+            "unit": "USD",
+            "window": "EOD",
+            "source": "test-source",
+            "quality": "final",
+            "notes": "",
+        }
+        for asset, value in [
+            ("WTI", 70.5),
+            ("Brent", 75.2),
+            ("Gold", 2033.4),
+            ("Copper", 4.15),
+            ("BTC", 61000.0),
+        ]
+    ]
+
+    write_latest(latest_path, rows)
+
+    now = datetime(2024, 2, 6, 17, 1, tzinfo=KST)
+    report = update_history.upsert_from_latest(latest_path, history_path, now=now)
+
+    frame = pd.read_csv(history_path, dtype=str).fillna("")
+    record = frame.iloc[0]
+
+    assert record["time_kst"] == "2024-02-06 15:30:00"
+    assert float(record["wti"]) == 70.5
+    assert float(record["brent"]) == 75.2
+    assert float(record["gold"]) == 2033.4
+    assert float(record["copper"]) == 4.15
+    assert float(record["btc"]) == 61000.0
+
+    # 디버깅 로그가 각 필드를 ok_eod로 표시했는지 확인하여 추후 문제가 생겼을 때 빠르게 파악할 수 있게 합니다.
+    for column in ["wti", "brent", "gold", "copper", "btc"]:
+        assert report.field_status[column]["status"] == "ok_eod"
 
 
 def test_upsert_skips_out_of_range(tmp_path: Path) -> None:

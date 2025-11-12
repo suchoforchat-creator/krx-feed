@@ -69,11 +69,14 @@ LATEST_TO_HISTORY: Dict[Tuple[str, str], str] = {
     ("KR3Y", "yield"): "kr3y",
     ("KR10Y", "yield"): "kr10y",
     ("TIPS10Y", "yield"): "tips10y",
-    ("WTI", "price"): "wti",
-    ("Brent", "curve_M1"): "brent",
-    ("Gold", "price"): "gold",
-    ("Copper", "price"): "copper",
-    ("BTC", "price"): "btc",
+    # 원자재·암호화폐는 compute 단계에서 key="spot"으로 기록됩니다.
+    # 기존 코드가 price/curve_M1을 찾도록 되어 있어 값이 누락되었으므로
+    # history 매핑을 실제 latest.csv 키에 맞게 수정합니다.
+    ("WTI", "spot"): "wti",
+    ("Brent", "spot"): "brent",
+    ("Gold", "spot"): "gold",
+    ("Copper", "spot"): "copper",
+    ("BTC", "spot"): "btc",
     ("KOSPI200", "hv30"): "k200_hv30",
 }
 

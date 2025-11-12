@@ -45,11 +45,12 @@ def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
         ("KR3Y", "yield"),
         ("KR10Y", "yield"),
         ("TIPS10Y", "yield"),
-        ("WTI", "price"),
-        ("Brent", "curve_M1"),
-        ("Gold", "price"),
-        ("Copper", "price"),
-        ("BTC", "price"),
+        # 원자재·암호화폐 레코드는 compute 모듈에서 key="spot"으로 생성됩니다.
+        ("WTI", "spot"),
+        ("Brent", "spot"),
+        ("Gold", "spot"),
+        ("Copper", "spot"),
+        ("BTC", "spot"),
         ("KOSPI200", "hv30"),
     }
 
@@ -242,6 +243,8 @@ def main() -> int:
         # 17:00 배치에서는 latest.csv를 기반으로 history.csv를 업서트하고 결과를 JSON으로 출력합니다.
         if args.phase in {"1700", "EOD"}:
             debug_dir = Path("debug") / "1700"
+            debug_dir.mkdir(parents=True, exist_ok=True)
+
             report = update_history.upsert_from_latest(
                 latest_path,
                 Path("out") / "history.csv",
@@ -257,6 +260,32 @@ def main() -> int:
                     ensure_ascii=False,
                 ),
             )
+
+            # 초심자 디버깅 팁: history.csv가 비어 있으면 downstream 분석이 모두 실패합니다.
+            # 따라서 즉시 파일 존재 여부와 크기를 검사해 문제가 생기면 구체적인 정보를 남깁니다.
+            history_path = Path("out") / "history.csv"
+            if (not history_path.exists()) or history_path.stat().st_size == 0:
+                error_payload = {
+                    "reason": "missing_or_empty_history",
+                    "history_path": str(history_path),
+                    "latest_path": str(latest_path),
+                    "timestamp_kst": datetime.now(KST).isoformat(),
+                }
+                debug_file = debug_dir / "history_upsert_validation_error.json"
+                debug_file.write_text(json.dumps(error_payload, ensure_ascii=False, indent=2))
+                print("[history-upsert] ERROR:", json.dumps(error_payload, ensure_ascii=False))
+                raise SystemExit(2)
+            else:
+                print(
+                    "[history-upsert] OK:",
+                    json.dumps(
+                        {
+                            "history_path": str(history_path),
+                            "size": history_path.stat().st_size,
+                        },
+                        ensure_ascii=False,
+                    ),
+                )
 
         append_log(ts, "success", {"phase": args.phase})
         return 0
