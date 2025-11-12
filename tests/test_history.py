@@ -17,7 +17,9 @@ def write_latest(path: Path, rows: list[dict[str, object]]) -> None:
     frame.to_csv(path, index=False)
 
 
-def test_upsert_skips_outside_window(tmp_path: Path) -> None:
+def test_upsert_runs_without_time_guard(tmp_path: Path) -> None:
+    """시간 가드를 제거했으므로 아무 시각에서도 업서트가 실행되는지 확인합니다."""
+
     latest_path = tmp_path / "out" / "latest.csv"
     history_path = tmp_path / "out" / "history.csv"
     write_latest(
@@ -40,9 +42,16 @@ def test_upsert_skips_outside_window(tmp_path: Path) -> None:
     now = datetime(2024, 2, 2, 15, 0, tzinfo=KST)
     report = update_history.upsert_from_latest(latest_path, history_path, now=now)
 
+    # 시간 가드가 비활성화되었으므로 언제 실행해도 history.csv가 생성되어야 합니다.
+    assert history_path.exists()
+    frame = pd.read_csv(history_path)
+    assert len(frame) == 1
+    assert float(frame.iloc[0]["kospi"]) == 2500.0
+    # 디버그 로그에 비활성화 메시지가 남는지도 확인합니다.
+    assert any(step["message"] == "시간 가드 비활성화" for step in report.steps)
+
     assert not history_path.exists()
     assert any(step["message"].startswith("시간 가드") for step in report.steps)
-
 
 def test_upsert_creates_row(tmp_path: Path) -> None:
     latest_path = tmp_path / "out" / "latest.csv"
@@ -99,38 +108,7 @@ def test_upsert_creates_row(tmp_path: Path) -> None:
     assert float(record["usdkrw"]) == 1320.5
     assert record["src_tag"] == "bok|krx"
     assert record["quality"] == "secondary"
-    assert report.field_status["kospi"]["status"] == "ok"
-
-
-def test_upsert_fallbacks_to_any_window(tmp_path: Path) -> None:
-    latest_path = tmp_path / "out" / "latest.csv"
-    history_path = tmp_path / "out" / "history.csv"
-    write_latest(
-        latest_path,
-        [
-            {
-                "ts_kst": "2024-02-05 15:30:00",
-                "asset": "KOSPI",
-                "key": "idx",
-                "value": 2575.0,
-                "unit": "idx",
-                "window": "",  # EOD 태그가 없어도 업서트가 동작해야 합니다.
-                "source": "krx",
-                "quality": "final",
-                "notes": "",
-            }
-        ],
-    )
-
-    now = datetime(2024, 2, 5, 17, 1, tzinfo=KST)
-    report = update_history.upsert_from_latest(latest_path, history_path, now=now)
-
-    frame = pd.read_csv(history_path)
-    assert len(frame) == 1
-    record = frame.iloc[0]
-    assert record["time_kst"] == "2024-02-05 15:30:00"
-    assert float(record["kospi"]) == 2575.0
-    assert report.field_status["kospi"]["status"] == "ok"
+    assert report.field_status["kospi"]["status"] == "ok_eod"
 
 
 def test_upsert_overwrites_existing_row(tmp_path: Path) -> None:
@@ -194,6 +172,36 @@ def test_upsert_overwrites_existing_row(tmp_path: Path) -> None:
     frame = pd.read_csv(history_path)
     assert len(frame) == 1
     assert float(frame.iloc[0]["kospi"]) == 2600
+
+
+def test_upsert_any_window_fallback(tmp_path: Path) -> None:
+    latest_path = tmp_path / "out" / "latest.csv"
+    history_path = tmp_path / "out" / "history.csv"
+
+    write_latest(
+        latest_path,
+        [
+            {
+                "ts_kst": "2024-02-05 15:30:00",
+                "asset": "USD/KRW",
+                "key": "spot",
+                "value": 1333.3,
+                "unit": "KRW",
+                "window": "",  # 의도적으로 EOD 누락
+                "source": "bok",
+                "quality": "secondary",
+                "notes": "",
+            }
+        ],
+    )
+
+    now = datetime(2024, 2, 5, 17, 3, tzinfo=KST)
+    report = update_history.upsert_from_latest(latest_path, history_path, now=now)
+
+    frame = pd.read_csv(history_path)
+    record = frame.iloc[0]
+    assert float(record["usdkrw"]) == 1333.3
+    assert report.field_status["usdkrw"]["status"] == "ok_any"
 
 
 def test_upsert_skips_out_of_range(tmp_path: Path) -> None:
