@@ -102,6 +102,37 @@ def test_upsert_creates_row(tmp_path: Path) -> None:
     assert report.field_status["kospi"]["status"] == "ok"
 
 
+def test_upsert_fallbacks_to_any_window(tmp_path: Path) -> None:
+    latest_path = tmp_path / "out" / "latest.csv"
+    history_path = tmp_path / "out" / "history.csv"
+    write_latest(
+        latest_path,
+        [
+            {
+                "ts_kst": "2024-02-05 15:30:00",
+                "asset": "KOSPI",
+                "key": "idx",
+                "value": 2575.0,
+                "unit": "idx",
+                "window": "",  # EOD 태그가 없어도 업서트가 동작해야 합니다.
+                "source": "krx",
+                "quality": "final",
+                "notes": "",
+            }
+        ],
+    )
+
+    now = datetime(2024, 2, 5, 17, 1, tzinfo=KST)
+    report = update_history.upsert_from_latest(latest_path, history_path, now=now)
+
+    frame = pd.read_csv(history_path)
+    assert len(frame) == 1
+    record = frame.iloc[0]
+    assert record["time_kst"] == "2024-02-05 15:30:00"
+    assert float(record["kospi"]) == 2575.0
+    assert report.field_status["kospi"]["status"] == "ok"
+
+
 def test_upsert_overwrites_existing_row(tmp_path: Path) -> None:
     latest_path = tmp_path / "out" / "latest.csv"
     history_path = tmp_path / "out" / "history.csv"

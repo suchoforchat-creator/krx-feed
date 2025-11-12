@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -8,6 +9,7 @@ from typing import Dict, Tuple
 
 import pandas as pd
 
+import update_history
 from src import compute, reconcile
 from src.kis import KISClient, market
 from src.sources import commod_crypto
@@ -109,6 +111,51 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
     return raw_frames, failure_notes, metrics
 
 
+def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
+    """필요한 자산/키에 window="EOD" 태그를 붙여 history 업서트 대상임을 표시합니다."""
+
+    if frame.empty:
+        # 비어 있는 경우 그대로 반환하면 이후 로직이 자연스럽게 넘어갑니다.
+        return frame
+
+    required_columns = {"asset", "key", "window"}
+    missing = required_columns.difference(frame.columns)
+    if missing:
+        # 필수 컬럼이 없다면 디버깅을 위해 그대로 반환하여 후속 단계에서 KeyError가 발생하도록 둡니다.
+        return frame
+
+    frame = frame.copy()
+
+    eod_keys = {
+        ("KOSPI", "idx"),
+        ("KOSDAQ", "idx"),
+        ("KOSPI", "advance"),
+        ("KOSPI", "decline"),
+        ("KOSPI", "unchanged"),
+        ("KOSDAQ", "advance"),
+        ("KOSDAQ", "decline"),
+        ("KOSDAQ", "unchanged"),
+        ("USD/KRW", "spot"),
+        ("DXY", "idx"),
+        ("UST2Y", "yield"),
+        ("UST10Y", "yield"),
+        ("KR3Y", "yield"),
+        ("KR10Y", "yield"),
+        ("TIPS10Y", "yield"),
+        ("WTI", "price"),
+        ("Brent", "curve_M1"),
+        ("Gold", "price"),
+        ("Copper", "price"),
+        ("BTC", "price"),
+        ("KOSPI200", "hv30"),
+    }
+
+    # (asset, key) 튜플을 만들어 빠르게 필터링합니다.
+    mask = frame[["asset", "key"]].apply(lambda row: (row["asset"], row["key"]) in eod_keys, axis=1)
+    frame.loc[mask, "window"] = "EOD"
+    return frame
+
+
 def main() -> int:
     args = parse_args()
     config = load_yaml(Path("conf.yml"))
@@ -122,6 +169,10 @@ def main() -> int:
         if metrics.get("symbol_not_found"):
             append_log(ts, "monitor", {"symbol_not_found": metrics["symbol_not_found"]})
         records = compute.compute_records(ts, raw_frames, notes)
+        if args.phase in {"1700", "EOD"}:
+            records_df = pd.DataFrame(records)
+            records_df = mark_eod(records_df)
+            records = records_df.to_dict("records")
         coverage = compute.check_coverage(records)
         append_log(ts, "coverage", {"ratio": coverage})
 
@@ -134,8 +185,27 @@ def main() -> int:
 
         if args.reconcile:
             reconciled = reconcile.reconcile(records, daily_path)
+            if args.phase in {"1700", "EOD"}:
+                reconciled_df = pd.DataFrame(reconciled)
+                reconciled_df = mark_eod(reconciled_df)
+                reconciled = reconciled_df.to_dict("records")
             write_latest(reconciled)
             write_daily(reconciled, ts)
+
+        if args.phase in {"1700", "EOD"}:
+            debug_report = update_history.upsert_from_latest(
+                "out/latest.csv", "out/history.csv", debug_dir="debug/1700"
+            )
+            print(
+                "[history-upsert]",
+                json.dumps(
+                    {
+                        "steps": debug_report.steps,
+                        "field_status": debug_report.field_status,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
 
         append_log(ts, "success", {"phase": args.phase})
         return 0
