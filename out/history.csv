@@ -1,2 +1,3 @@
 time_kst,kospi,kosdaq,kospi_adv,kospi_dec,kospi_unch,kosdaq_adv,kosdaq_dec,kosdaq_unch,usdkrw,dxy,ust2y,ust10y,kr3y,kr10y,tips10y,wti,brent,gold,copper,btc,k200_hv30,src_tag,quality
 2025-11-13 15:30:00,4170.629883,918.369995,476.0,386.0,96.0,885.0,730.0,187.0,1463.719971,99.34,3.58,4.13,2.932,3.267,,58.34,62.299999,4241.299805,5.142,103670.257812,,finance.yahoo.com|fred|krx|marketwatch|yahoofinance(^kq11)|yahoofinance(^ks11)|yahoofinance(krw=x),final
+2025-11-14 15:30:00,4011.570068,897.900024,171.0,719.0,68.0,348.0,1285.0,170.0,1458.670044,99.17,3.56,4.08,2.944,3.317,,59.34,63.630001,4186.399902,5.0625,97233.625,,finance.yahoo.com|fred|krx|marketwatch|yahoofinance(^kq11)|yahoofinance(^ks11)|yahoofinance(krw=x),final
