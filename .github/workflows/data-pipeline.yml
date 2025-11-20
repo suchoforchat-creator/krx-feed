@@ -37,7 +37,7 @@ jobs:
           git push
 
   finalize_1700:
-    #if: github.event.schedule == '00 08 * * 1-5'
+    if: github.event.schedule == '00 08 * * 1-5'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
