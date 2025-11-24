@@ -10,6 +10,7 @@ from typing import Dict, Tuple
 
 import pandas as pd
 import requests
+import yfinance as yf  # VIX 0순위 소스로 사용
 
 import update_history
 from src import compute, reconcile
@@ -158,6 +159,30 @@ def fetch_vix() -> Dict[str, object]:
     """VIX를 다중 소스에서 순차적으로 시도해 한 개 레코드로 반환합니다."""
 
     tried: list[tuple[str, str]] = []
+
+    # 0) yfinance (^VIX) — GitHub Actions에서 가장 안정적인 1차 소스
+    #    초심자 팁: yfinance는 내부적으로 UA/쿠키를 적절히 설정해 주므로 직접 HTML을 파싱하는 것보다 실패 확률이 낮습니다.
+    try:
+        ticker = yf.Ticker("^VIX")
+        # 2일치 일봉을 가져와 가장 최신 종가를 사용합니다.
+        hist = ticker.history(period="2d", interval="1d")
+        if not hist.empty and "Close" in hist.columns:
+            value = float(hist["Close"].iloc[-1])
+            if 8 <= value <= 150:
+                return _rec(
+                    "VIX",
+                    "spot",
+                    value,
+                    "pt",
+                    source="yfinance",
+                    quality="secondary",
+                    url="https://finance.yahoo.com/quote/%5EVIX",
+                )
+            _fail(tried, "yfinance", f"out_of_range:{value}")
+        else:
+            _fail(tried, "yfinance", "empty_history_or_no_close")
+    except Exception as exc:  # pragma: no cover
+        _fail(tried, "yfinance", f"{type(exc).__name__}:{exc}")
 
     # ① Cboe 공식 JSON
     try:
