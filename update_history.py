@@ -48,6 +48,7 @@ HISTORY_COLUMNS: List[str] = [
     "copper",
     "btc",
     "k200_hv30",
+    "vix",
     "src_tag",
     "quality",
 ]
@@ -78,6 +79,7 @@ LATEST_TO_HISTORY: Dict[Tuple[str, str], str] = {
     ("Copper", "spot"): "copper",
     ("BTC", "spot"): "btc",
     ("KOSPI200", "hv30"): "k200_hv30",
+    ("VIX", "spot"): "vix",
 }
 
 # 값 검증 범위입니다. 범위를 벗어나면 기록하지 않고 공란으로 둡니다.
@@ -90,6 +92,8 @@ VALUE_VALIDATORS: Dict[str, Tuple[Optional[float], Optional[float]]] = {
     "kr10y": (0, 10),
     "tips10y": (0, 10),
     "dxy": (70, 130),
+    # VIX는 급변을 고려해 8~150pt 범위를 허용합니다.
+    "vix": (8, 150),
     # 나머지 컬럼은 별도 범위 제한이 없습니다.
 }
 

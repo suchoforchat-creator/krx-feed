@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, Tuple
 
 import pandas as pd
+import requests
 
 import update_history
 from src import compute, reconcile
@@ -52,6 +54,7 @@ def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
         ("Copper", "spot"),
         ("BTC", "spot"),
         ("KOSPI200", "hv30"),
+        ("VIX", "spot"),
     }
 
     # window 컬럼이 없으면 빈 문자열로 채워 디버깅 시 결측 여부를 쉽게 확인합니다.
@@ -79,6 +82,150 @@ def parse_args() -> argparse.Namespace:
 def _store_raw(asset: str, phase: str, frame: pd.DataFrame) -> None:
     safe_name = asset.lower().replace("/", "_")
     write_raw(safe_name, phase, frame)
+
+
+# ---------------------------------------------------------------------------
+# VIX 수집 유틸리티
+# ---------------------------------------------------------------------------
+
+UA_HDR = {"User-Agent": "Mozilla/5.0", "Accept-Language": "en-US,en;q=0.9"}
+
+
+def _now_kst_str() -> str:
+    """KST 기준 현재 시각을 문자열(초 단위)로 반환합니다."""
+
+    return datetime.now(KST).strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _http_get(url: str, *, timeout: int = 10, headers: Dict[str, str] | None = None) -> requests.Response:
+    """공통 GET 래퍼: UA를 기본으로 넣고 예외는 호출자가 처리합니다."""
+
+    return requests.get(url, timeout=timeout, headers=headers or UA_HDR)
+
+
+def _http_json(url: str, *, timeout: int = 10, headers: Dict[str, str] | None = None) -> Dict:
+    """JSON 응답을 바로 파싱하는 헬퍼."""
+
+    return _http_get(url, timeout=timeout, headers=headers).json()
+
+
+def _rec(
+    asset: str,
+    key: str,
+    value: float | None,
+    unit: str,
+    *,
+    window: str = "1D",
+    source: str = "",
+    quality: str = "",
+    url: str = "",
+    notes: str = "",
+) -> Dict[str, object]:
+    """latest.csv 한 행을 쉽게 만들기 위한 도우미."""
+
+    return {
+        "ts_kst": _now_kst_str(),
+        "asset": asset,
+        "key": key,
+        "value": value,
+        "unit": unit,
+        "window": window,
+        "change_abs": None,
+        "change_pct": None,
+        "source": source,
+        "quality": quality,
+        "url": url,
+        "notes": notes,
+    }
+
+
+def fetch_vix() -> Dict[str, object]:
+    """VIX를 다중 소스에서 순차적으로 시도해 한 개 레코드로 반환합니다."""
+
+    tried: list[tuple[str, str]] = []
+
+    # ① Cboe 공식 JSON
+    try:
+        url = "https://cdn.cboe.com/api/global/us_indices/indicators/VIX"
+        payload = _http_json(url, timeout=12, headers=UA_HDR)
+        last_value = None
+        if isinstance(payload, dict):
+            data = payload.get("data") or []
+            if isinstance(data, list) and data:
+                entry = data[0]
+                last_value = entry.get("last") or entry.get("value")
+        if last_value is not None and 8 <= float(last_value) <= 150:
+            return _rec("VIX", "spot", float(last_value), "pt", source="cboe", quality="final", url=url)
+    except Exception as exc:  # pragma: no cover - 네트워크/파싱 실패 대비
+        tried.append(("cboe", str(exc)))
+
+    # ② Yahoo Finance HTML
+    try:
+        url = "https://finance.yahoo.com/quote/%5EVIX"
+        html = _http_get(url, timeout=10).text
+        match = re.search(r'"regularMarketPrice":\s*\{"raw":\s*([0-9.]+)', html)
+        if match:
+            value = float(match.group(1))
+            if 8 <= value <= 150:
+                return _rec("VIX", "spot", value, "pt", source="yahoo", quality="secondary", url=url)
+    except Exception as exc:  # pragma: no cover
+        tried.append(("yahoo", str(exc)))
+
+    # ③ Stooq CSV
+    try:
+        url = "https://stooq.com/q/d/l/?s=vix&i=d"
+        df = pd.read_csv(url)
+        value = float(df.tail(1)["Close"].iloc[0])
+        if 8 <= value <= 150:
+            return _rec("VIX", "spot", value, "pt", source="stooq", quality="secondary", url=url)
+    except Exception as exc:  # pragma: no cover
+        tried.append(("stooq", str(exc)))
+
+    # ④ MarketWatch HTML
+    try:
+        url = "https://www.marketwatch.com/investing/index/vix"
+        html = _http_get(url, timeout=10).text
+        match = re.search(r'<bg-quote[^>]*class="[^"]*value[^"]*"[^>]*>([0-9.]+)</bg-quote>', html)
+        if not match:
+            match = re.search(r'"price"\s*:\s*([0-9.]+)', html)
+        if match:
+            value = float(match.group(1))
+            if 8 <= value <= 150:
+                return _rec(
+                    "VIX",
+                    "spot",
+                    value,
+                    "pt",
+                    source="marketwatch",
+                    quality="secondary",
+                    url=url,
+                )
+    except Exception as exc:  # pragma: no cover
+        tried.append(("marketwatch", str(exc)))
+
+    # ⑤ TradingView HTML
+    try:
+        url = "https://www.tradingview.com/symbols/TVC-VIX/"
+        html = _http_get(url, timeout=10).text
+        match = re.search(r'__NEXT_DATA__"\s*type="application/json">\s*({.*})\s*</script>', html)
+        if match:
+            import json as _json
+
+            data = _json.loads(match.group(1))
+            # 페이지 구조 변화에 대비해 JSON 전체를 문자열로 변환해 숫자 패턴을 찾습니다.
+            blob = str(data)
+            price_match = re.search(r'"lp"\s*:\s*([0-9.]+)', blob) or re.search(r'"price"\s*:\s*([0-9.]+)', blob)
+            if price_match:
+                value = float(price_match.group(1))
+                if 8 <= value <= 150:
+                    return _rec("VIX", "spot", value, "pt", source="tradingview", quality="secondary", url=url)
+    except Exception as exc:  # pragma: no cover
+        tried.append(("tradingview", str(exc)))
+
+    # 모든 시도가 실패하면 값 없이 실패 노트를 남깁니다.
+    note = "parse_failed:" + "|".join([f"{src}:{msg[:64]}" for src, msg in tried])
+    urls = ";".join([src for src, _ in tried])
+    return _rec("VIX", "spot", None, "pt", source="all_sources_failed", notes=note, url=urls)
 
 
 def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict[str, str], Dict[str, list[str]]]:
@@ -216,6 +363,10 @@ def main() -> int:
             append_log(ts, "monitor", {"symbol_not_found": metrics["symbol_not_found"]})
         records = compute.compute_records(ts, raw_frames, notes)
 
+        # VIX는 다른 지표와 동일하게 latest.csv에 남겨 history 업서트에도 활용합니다.
+        # 네트워크 상태에 따라 어떤 소스가 성공했는지 쉽게 확인할 수 있도록 notes/source를 그대로 기록합니다.
+        records.append(fetch_vix())
+
         # 17:00 KST 배치에서는 history 업서트를 위해 window="EOD" 플래그를 미리 지정합니다.
         if args.phase in {"1700", "EOD"}:
             records_frame = mark_eod(pd.DataFrame(records))
@@ -243,8 +394,6 @@ def main() -> int:
         # 17:00 배치에서는 latest.csv를 기반으로 history.csv를 업서트하고 결과를 JSON으로 출력합니다.
         if args.phase in {"1700", "EOD"}:
             debug_dir = Path("debug") / "1700"
-            debug_dir.mkdir(parents=True, exist_ok=True)
-
             report = update_history.upsert_from_latest(
                 latest_path,
                 Path("out") / "history.csv",
@@ -261,31 +410,27 @@ def main() -> int:
                 ),
             )
 
-            # 초심자 디버깅 팁: history.csv가 비어 있으면 downstream 분석이 모두 실패합니다.
-            # 따라서 즉시 파일 존재 여부와 크기를 검사해 문제가 생기면 구체적인 정보를 남깁니다.
-            history_path = Path("out") / "history.csv"
+            # 초심자 디버깅 팁: history.csv가 실제로 생성되었는지 즉시 확인하면,
+            # 이후 단계에서 "파일이 없어 업서트가 안 됐다" 같은 문제를 빠르게 찾을 수 있습니다.
+            from pathlib import Path as _Path
+
+            history_path = _Path("out/history.csv")
             if (not history_path.exists()) or history_path.stat().st_size == 0:
-                error_payload = {
-                    "reason": "missing_or_empty_history",
-                    "history_path": str(history_path),
-                    "latest_path": str(latest_path),
-                    "timestamp_kst": datetime.now(KST).isoformat(),
-                }
-                debug_file = debug_dir / "history_upsert_validation_error.json"
-                debug_file.write_text(json.dumps(error_payload, ensure_ascii=False, indent=2))
-                print("[history-upsert] ERROR:", json.dumps(error_payload, ensure_ascii=False))
+                print("[history-upsert] ERROR: out/history.csv missing or empty")
+                # SystemExit(2)를 던지면 GitHub Actions와 로컬 실행 모두 실패로 표시되어,
+                # 사용자가 로그를 확인하고 원인을 추적할 수 있습니다.
                 raise SystemExit(2)
-            else:
-                print(
-                    "[history-upsert] OK:",
-                    json.dumps(
-                        {
-                            "history_path": str(history_path),
-                            "size": history_path.stat().st_size,
-                        },
-                        ensure_ascii=False,
-                    ),
-                )
+
+            print(
+                "[history-upsert] OK",
+                json.dumps(
+                    {
+                        "path": str(history_path),
+                        "size": history_path.stat().st_size,
+                    },
+                    ensure_ascii=False,
+                ),
+            )
 
         append_log(ts, "success", {"phase": args.phase})
         return 0
