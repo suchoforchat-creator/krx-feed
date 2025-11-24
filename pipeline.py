@@ -88,7 +88,11 @@ def _store_raw(asset: str, phase: str, frame: pd.DataFrame) -> None:
 # VIX 수집 유틸리티
 # ---------------------------------------------------------------------------
 
-UA_HDR = {"User-Agent": "Mozilla/5.0", "Accept-Language": "en-US,en;q=0.9"}
+UA_HDR = {
+    "User-Agent": "Mozilla/5.0",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Accept": "text/html,application/json;q=0.9,*/*;q=0.8",
+}
 
 
 def _now_kst_str() -> str:
@@ -98,9 +102,20 @@ def _now_kst_str() -> str:
 
 
 def _http_get(url: str, *, timeout: int = 10, headers: Dict[str, str] | None = None) -> requests.Response:
-    """공통 GET 래퍼: UA를 기본으로 넣고 예외는 호출자가 처리합니다."""
+    """공통 GET 래퍼: UA를 기본으로 넣고 HTTP 오류를 즉시 표시합니다."""
 
-    return requests.get(url, timeout=timeout, headers=headers or UA_HDR)
+    response = requests.get(url, timeout=timeout, headers=headers or UA_HDR)
+    # 초심자 팁: raise_for_status()로 4xx/5xx를 바로 예외로 전환하여
+    #           다음 소스로 빠르게 폴백할 수 있습니다.
+    response.raise_for_status()
+    return response
+
+
+def _fail(tried: list[tuple[str, str]], name: str, reason: str) -> None:
+    """시도한 소스와 실패 사유를 기록하는 헬퍼."""
+
+    # 실패 메시지는 너무 길면 notes 컬럼을 넘칠 수 있으니 80자로 자릅니다.
+    tried.append((name, (reason or "")[:80]))
 
 
 def _http_json(url: str, *, timeout: int = 10, headers: Dict[str, str] | None = None) -> Dict:
@@ -147,7 +162,12 @@ def fetch_vix() -> Dict[str, object]:
     # ① Cboe 공식 JSON
     try:
         url = "https://cdn.cboe.com/api/global/us_indices/indicators/VIX"
-        payload = _http_json(url, timeout=12, headers=UA_HDR)
+        hdr = UA_HDR | {
+            "Accept": "application/json",
+            "Referer": "https://www.cboe.com/",
+            "Origin": "https://www.cboe.com",
+        }
+        payload = _http_json(url, timeout=12, headers=hdr)
         last_value = None
         if isinstance(payload, dict):
             data = payload.get("data") or []
@@ -156,10 +176,45 @@ def fetch_vix() -> Dict[str, object]:
                 last_value = entry.get("last") or entry.get("value")
         if last_value is not None and 8 <= float(last_value) <= 150:
             return _rec("VIX", "spot", float(last_value), "pt", source="cboe", quality="final", url=url)
+        _fail(tried, "cboe", "no_last_value")
     except Exception as exc:  # pragma: no cover - 네트워크/파싱 실패 대비
-        tried.append(("cboe", str(exc)))
+        _fail(tried, "cboe", f"{type(exc).__name__}:{exc}")
 
-    # ② Yahoo Finance HTML
+    # ①-2 Cboe quotes JSON(공식 보조 엔드포인트)
+    try:
+        url = "https://cdn.cboe.com/api/global/us_indices/quotes/VIX.json"
+        hdr = UA_HDR | {
+            "Accept": "application/json",
+            "Referer": "https://www.cboe.com/indices/",
+        }
+        payload = _http_json(url, timeout=12, headers=hdr)
+        last_value = None
+        if isinstance(payload, dict):
+            data = payload.get("data")
+            if isinstance(data, dict) and "VIX" in data:
+                last_value = data["VIX"].get("last")
+            elif isinstance(data, list) and data:
+                last_value = data[0].get("last")
+        if last_value is not None and 8 <= float(last_value) <= 150:
+            return _rec("VIX", "spot", float(last_value), "pt", source="cboe_quotes", quality="final", url=url)
+        _fail(tried, "cboe_quotes", "no_last_value")
+    except Exception as exc:  # pragma: no cover
+        _fail(tried, "cboe_quotes", f"{type(exc).__name__}:{exc}")
+
+    # ② Yahoo Finance JSON API
+    try:
+        url = "https://query1.finance.yahoo.com/v7/finance/quote?symbols=%5EVIX"
+        payload = _http_json(url, timeout=10, headers=UA_HDR)
+        result = (payload.get("quoteResponse", {}) or {}).get("result", [])
+        if result:
+            price = result[0].get("regularMarketPrice")
+            if price is not None and 8 <= float(price) <= 150:
+                return _rec("VIX", "spot", float(price), "pt", source="yahoo_quote", quality="secondary", url=url)
+        _fail(tried, "yahoo_quote", "no_regularMarketPrice")
+    except Exception as exc:  # pragma: no cover
+        _fail(tried, "yahoo_quote", f"{type(exc).__name__}:{exc}")
+
+    # ②-2 Yahoo Finance HTML
     try:
         url = "https://finance.yahoo.com/quote/%5EVIX"
         html = _http_get(url, timeout=10).text
@@ -167,27 +222,34 @@ def fetch_vix() -> Dict[str, object]:
         if match:
             value = float(match.group(1))
             if 8 <= value <= 150:
-                return _rec("VIX", "spot", value, "pt", source="yahoo", quality="secondary", url=url)
+                return _rec("VIX", "spot", value, "pt", source="yahoo_html", quality="secondary", url=url)
+        _fail(tried, "yahoo_html", "pattern_not_found")
     except Exception as exc:  # pragma: no cover
-        tried.append(("yahoo", str(exc)))
+        _fail(tried, "yahoo_html", f"{type(exc).__name__}:{exc}")
 
     # ③ Stooq CSV
     try:
         url = "https://stooq.com/q/d/l/?s=vix&i=d"
         df = pd.read_csv(url)
-        value = float(df.tail(1)["Close"].iloc[0])
-        if 8 <= value <= 150:
-            return _rec("VIX", "spot", value, "pt", source="stooq", quality="secondary", url=url)
+        columns = {c.lower(): c for c in df.columns}
+        close_col = columns.get("close") or columns.get("zamkniecie")
+        if close_col:
+            value = float(df.tail(1)[close_col].iloc[0])
+            if 8 <= value <= 150:
+                return _rec("VIX", "spot", value, "pt", source="stooq", quality="secondary", url=url)
+            _fail(tried, "stooq", f"out_of_range:{value}")
+        else:
+            _fail(tried, "stooq", f"no_close_col:{list(df.columns)[:5]}")
     except Exception as exc:  # pragma: no cover
-        tried.append(("stooq", str(exc)))
+        _fail(tried, "stooq", f"{type(exc).__name__}:{exc}")
 
     # ④ MarketWatch HTML
     try:
         url = "https://www.marketwatch.com/investing/index/vix"
-        html = _http_get(url, timeout=10).text
+        html = _http_get(url, timeout=10, headers=UA_HDR | {"Referer": "https://www.marketwatch.com/"}).text
         match = re.search(r'<bg-quote[^>]*class="[^"]*value[^"]*"[^>]*>([0-9.]+)</bg-quote>', html)
-        if not match:
-            match = re.search(r'"price"\s*:\s*([0-9.]+)', html)
+        match = match or re.search(r'"instrument-price-last"\s*:\s*"([0-9.]+)"', html)
+        match = match or re.search(r'"price"\s*:\s*([0-9.]+)', html)
         if match:
             value = float(match.group(1))
             if 8 <= value <= 150:
@@ -200,8 +262,9 @@ def fetch_vix() -> Dict[str, object]:
                     quality="secondary",
                     url=url,
                 )
+        _fail(tried, "marketwatch", "pattern_not_found")
     except Exception as exc:  # pragma: no cover
-        tried.append(("marketwatch", str(exc)))
+        _fail(tried, "marketwatch", f"{type(exc).__name__}:{exc}")
 
     # ⑤ TradingView HTML
     try:
@@ -214,17 +277,18 @@ def fetch_vix() -> Dict[str, object]:
             data = _json.loads(match.group(1))
             # 페이지 구조 변화에 대비해 JSON 전체를 문자열로 변환해 숫자 패턴을 찾습니다.
             blob = str(data)
-            price_match = re.search(r'"lp"\s*:\s*([0-9.]+)', blob) or re.search(r'"price"\s*:\s*([0-9.]+)', blob)
+            price_match = re.search(r'"lp"\s*:\s*([0-9.]+)', blob) or re.search(r'"last"\s*:\s*([0-9.]+)', blob) or re.search(r'"price"\s*:\s*([0-9.]+)', blob)
             if price_match:
                 value = float(price_match.group(1))
                 if 8 <= value <= 150:
                     return _rec("VIX", "spot", value, "pt", source="tradingview", quality="secondary", url=url)
+        _fail(tried, "tradingview", "pattern_not_found")
     except Exception as exc:  # pragma: no cover
-        tried.append(("tradingview", str(exc)))
+        _fail(tried, "tradingview", f"{type(exc).__name__}:{exc}")
 
     # 모든 시도가 실패하면 값 없이 실패 노트를 남깁니다.
-    note = "parse_failed:" + "|".join([f"{src}:{msg[:64]}" for src, msg in tried])
-    urls = ";".join([src for src, _ in tried])
+    note = "parse_failed:" + ("|".join([f"{src}:{msg}" for src, msg in tried]) or "no_source_matched")
+    urls = ";".join([src for src, _ in tried]) or "none"
     return _rec("VIX", "spot", None, "pt", source="all_sources_failed", notes=note, url=urls)
 
 
