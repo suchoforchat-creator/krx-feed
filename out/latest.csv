@@ -1,33 +1,33 @@
 ts_kst,asset,key,value,unit,window,change_abs,change_pct,source,quality,url,notes
-2025-11-24 17:24,KOSPI,idx,3846.060059,pt,1D,-7.199951,-0.001869,YahooFinance(^KS11),secondary,https://finance.yahoo.com/quote/^KS11,
-2025-11-24 17:24,KOSDAQ,idx,856.440002,pt,1D,-7.51001,-0.008693,YahooFinance(^KQ11),secondary,https://finance.yahoo.com/quote/^KQ11,
-2025-11-24 17:24,KOSPI,advance,306.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
-2025-11-24 17:24,KOSPI,decline,578.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
-2025-11-24 17:24,KOSPI,unchanged,73.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
-2025-11-24 17:24,KOSDAQ,advance,621.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSDAQ,ok
-2025-11-24 17:24,KOSDAQ,decline,1023.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSDAQ,ok
-2025-11-24 17:24,KOSDAQ,unchanged,165.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSDAQ,ok
-2025-11-24 17:24,KOSPI,limit_up,1.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
-2025-11-24 17:24,KOSPI,limit_down,0.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
-2025-11-24 17:24,KOSPI,trin,0.703743,ratio,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
-2025-11-24 17:24,KOSPI,trading_value,20824945572529.0,KRW,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
-2025-11-24 17:24,K200,hv30,0.354559,vol,30D,,,YahooFinance(^KS200),secondary,https://finance.yahoo.com/quote/^KS200,
-2025-11-24 17:24,ES,basis,0.00818,ratio,1D,,,YahooFinance(ES=F),secondary,https://finance.yahoo.com/quote/ES=F,
-2025-11-24 17:24,NQ,basis,0.010661,ratio,1D,,,YahooFinance(NQ=F),secondary,https://finance.yahoo.com/quote/NQ=F,
-2025-11-24 17:24,SOX,ret_1w,-0.059427,return,1W,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
-2025-11-24 17:24,SOX,ret_1m,-0.064398,return,1M,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
-2025-11-24 17:24,USD/KRW,spot,1475.079956,KRW,1D,1.829956,0.001242,YahooFinance(KRW=X),secondary,https://finance.yahoo.com/quote/KRW=X,
-2025-11-24 17:24,DXY,idx,100.13,idx,1D,,,marketwatch,secondary,https://www.marketwatch.com/investing/index/dxy,fallback:marketwatch
-2025-11-24 17:24,UST2Y,yield,3.55,pct,1D,,,fred,secondary,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2,ok:fred
-2025-11-24 17:24,UST10Y,yield,4.1,pct,1D,,,fred,secondary,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10,ok:fred
-2025-11-24 17:24,KR3Y,yield,2.904,pct,1D,0.032,0.011142,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401,ok
-2025-11-24 17:24,KR10Y,yield,3.289,pct,1D,0.018,0.005503,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401,ok
-2025-11-24 17:24,2s10s_US,spread,55.0,bp,1D,,,fred,secondary,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10 https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2,ok
-2025-11-24 17:24,2s10s_KR,spread,38.5,bp,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401 https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401,ok
-2025-11-24 17:24,WTI,spot,57.790001,USD,1D,-0.27,-0.00465,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/CL=F,
-2025-11-24 17:24,Brent,spot,61.66,USD,1D,-0.900002,-0.014386,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BZ=F,
-2025-11-24 17:24,Gold,spot,4058.800049,USD,1D,-17.899902,-0.004391,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/GC=F,
-2025-11-24 17:24,Copper,spot,5.004,USD,1D,-0.0045,-0.000898,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/HG=F,
-2025-11-24 17:24,BTC,spot,86832.960938,USD,1D,27.953125,0.000322,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
-2025-11-24 17:24,BTC,corr20,0.483117,corr,20D,,,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
-2025-11-24 17:24:36,VIX,spot,,pt,1D,,,all_sources_failed,,cboe;cboe_quotes;yahoo_quote;yahoo_html;stooq;marketwatch;tradingview,parse_failed:cboe:HTTPError:403 Client Error: Forbidden for url: https://cdn.cboe.com/api/global/u|cboe_quotes:HTTPError:403 Client Error: Forbidden for url: https://cdn.cboe.com/api/global/u|yahoo_quote:HTTPError:401 Client Error: Unauthorized for url: https://query1.finance.yahoo.c|yahoo_html:pattern_not_found|stooq:no_close_col:['No data']|marketwatch:HTTPError:401 Client Error: HTTP Forbidden for url: https://www.marketwatch.com/|tradingview:pattern_not_found
+2025-11-24 17:49,KOSPI,idx,3846.060059,pt,1D,-7.199951,-0.001869,YahooFinance(^KS11),secondary,https://finance.yahoo.com/quote/^KS11,
+2025-11-24 17:49,KOSDAQ,idx,856.440002,pt,1D,-7.51001,-0.008693,YahooFinance(^KQ11),secondary,https://finance.yahoo.com/quote/^KQ11,
+2025-11-24 17:49,KOSPI,advance,306.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
+2025-11-24 17:49,KOSPI,decline,578.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
+2025-11-24 17:49,KOSPI,unchanged,73.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
+2025-11-24 17:49,KOSDAQ,advance,621.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSDAQ,ok
+2025-11-24 17:49,KOSDAQ,decline,1023.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSDAQ,ok
+2025-11-24 17:49,KOSDAQ,unchanged,165.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSDAQ,ok
+2025-11-24 17:49,KOSPI,limit_up,1.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
+2025-11-24 17:49,KOSPI,limit_down,0.0,issues,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
+2025-11-24 17:49,KOSPI,trin,0.702923,ratio,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
+2025-11-24 17:49,KOSPI,trading_value,20828196621498.0,KRW,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC0201020102&market=KOSPI,ok
+2025-11-24 17:49,K200,hv30,0.354559,vol,30D,,,YahooFinance(^KS200),secondary,https://finance.yahoo.com/quote/^KS200,
+2025-11-24 17:49,ES,basis,0.008861,ratio,1D,,,YahooFinance(ES=F),secondary,https://finance.yahoo.com/quote/ES=F,
+2025-11-24 17:49,NQ,basis,0.012002,ratio,1D,,,YahooFinance(NQ=F),secondary,https://finance.yahoo.com/quote/NQ=F,
+2025-11-24 17:49,SOX,ret_1w,-0.059427,return,1W,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
+2025-11-24 17:49,SOX,ret_1m,-0.064398,return,1M,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
+2025-11-24 17:49,USD/KRW,spot,1475.73999,KRW,1D,2.48999,0.00169,YahooFinance(KRW=X),secondary,https://finance.yahoo.com/quote/KRW=X,
+2025-11-24 17:49,DXY,idx,100.11,idx,1D,,,marketwatch,secondary,https://www.marketwatch.com/investing/index/dxy,fallback:marketwatch
+2025-11-24 17:49,UST2Y,yield,3.55,pct,1D,,,fred,secondary,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2,ok:fred
+2025-11-24 17:49,UST10Y,yield,4.1,pct,1D,,,fred,secondary,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10,ok:fred
+2025-11-24 17:49,KR3Y,yield,2.904,pct,1D,0.032,0.011142,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401,ok
+2025-11-24 17:49,KR10Y,yield,3.289,pct,1D,0.018,0.005503,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401,ok
+2025-11-24 17:49,2s10s_US,spread,55.0,bp,1D,,,fred,secondary,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10 https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2,ok
+2025-11-24 17:49,2s10s_KR,spread,38.5,bp,1D,,,krx,final,https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401 https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401,ok
+2025-11-24 17:49,WTI,spot,57.810001,USD,1D,-0.25,-0.004306,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/CL=F,
+2025-11-24 17:49,Brent,spot,61.700001,USD,1D,-0.860001,-0.013747,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BZ=F,
+2025-11-24 17:49,Gold,spot,4059.899902,USD,1D,-16.800049,-0.004121,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/GC=F,
+2025-11-24 17:49,Copper,spot,5.09,USD,1D,0.0815,0.016272,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/HG=F,
+2025-11-24 17:49,BTC,spot,86791.695312,USD,1D,-13.3125,-0.000153,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
+2025-11-24 17:49,BTC,corr20,0.483138,corr,20D,,,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
+2025-11-24 17:50:12,VIX,spot,22.549999237060547,pt,1D,,,yfinance,secondary,https://finance.yahoo.com/quote/%5EVIX,
