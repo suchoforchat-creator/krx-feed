@@ -1,12 +1,11 @@
 from __future__ import annotations
 
 import json
-import os
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
 import math
-from typing import Any, Dict, Iterable, List, Optional
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 import numpy as np
 import pandas as pd
@@ -14,6 +13,23 @@ import pytz
 from dateutil import parser
 
 KST = pytz.timezone("Asia/Seoul")
+
+SCHEMA_COLUMNS = [
+    "ts_kst",
+    "asset",
+    "key",
+    "value",
+    "unit",
+    "window",
+    "change_abs",
+    "change_pct",
+    "source",
+    "quality",
+    "url",
+    "notes",
+]
+
+ALLOWED_QUALITIES = {"primary", "secondary", "final", "tagged", "prelim", "preliminary"}
 
 
 @dataclass
@@ -47,6 +63,15 @@ def ts_string(dt: datetime) -> str:
 
 def iso_ts(dt: datetime) -> str:
     return to_kst(dt).isoformat()
+
+
+def make_timestamp(tz_name: str, dt: datetime) -> str:
+    tz = pytz.timezone(tz_name)
+    if dt.tzinfo is None:
+        localized = tz.localize(dt)
+    else:
+        localized = dt.astimezone(tz)
+    return localized.strftime("%Y-%m-%d %H:%M")
 
 
 def parse_timestamp(value: Any) -> datetime:
@@ -107,6 +132,16 @@ def flatten_records(records: Iterable[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return [dict(rec) for rec in records]
 
 
+def ensure_schema(row: Dict[str, Any]) -> Dict[str, Any]:
+    missing = [col for col in SCHEMA_COLUMNS if col not in row]
+    if missing:
+        raise ValueError(f"missing columns: {missing}")
+    quality = str(row.get("quality", "")).lower()
+    if quality not in ALLOWED_QUALITIES:
+        raise ValueError(f"invalid quality: {row.get('quality')}")
+    return row
+
+
 def count_non_null(records: Iterable[Dict[str, Any]], required_keys: Iterable[str]) -> float:
     rows = list(records)
     required = set(required_keys)
@@ -114,7 +149,29 @@ def count_non_null(records: Iterable[Dict[str, Any]], required_keys: Iterable[st
     return hits / max(1, len(required))
 
 
-def coverage_ratio(records: Iterable[Dict[str, Any]], required_keys: Iterable[str]) -> float:
-    required = list(required_keys)
-    filled = {key for rec in records if rec.get("key") in required and rec.get("value") not in (None, "") for key in [rec["key"]]}
-    return len(filled) / max(1, len(required))
+def coverage_ratio(
+    records: Iterable[Dict[str, Any]],
+    required_keys: Iterable[Tuple[str, str] | str],
+) -> float:
+    required: Set[Tuple[str, str]] = set()
+    for key in required_keys:
+        if isinstance(key, tuple):
+            required.add(key)
+        else:
+            required.add(("", str(key)))
+
+    if not required:
+        return 1.0
+
+    covered: Set[Tuple[str, str]] = set()
+    for record in records:
+        asset = str(record.get("asset", ""))
+        field = str(record.get("key", ""))
+        pair = (asset, field)
+        if pair not in required:
+            continue
+        value = record.get("value")
+        if value not in (None, ""):
+            covered.add(pair)
+
+    return len(covered) / len(required)
