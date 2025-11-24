@@ -299,6 +299,21 @@ def test_upsert_skips_out_of_range(tmp_path: Path) -> None:
             }
         ],
     )
+    latest_path.parent.mkdir(parents=True, exist_ok=True)
+    empty_latest.to_csv(latest_path, index=False)
+
+    now = datetime(2024, 2, 7, 17, 1, tzinfo=KST)
+    report = update_history.upsert_from_latest(latest_path, history_path, now=now)
+
+    frame = pd.read_csv(history_path, dtype=str).fillna("")
+    assert len(frame) == 1
+    record = frame.iloc[0]
+    # 실행 시각 날짜(2024-02-07) 기준으로 15:30 타임스탬프가 들어가는지 확인합니다.
+    assert record["time_kst"] == "2024-02-07 15:30:00"
+    # 값이 모두 공란이고 상태가 missing_latest로 표시되는지 검증합니다.
+    assert record["kospi"] == ""
+    assert report.field_status["kospi"]["status"] == "missing_latest"
+    assert report.field_status["kospi"]["reason"] == "empty_latest_frame"
 
     now = datetime(2024, 2, 2, 17, 2, tzinfo=KST)
     report = update_history.upsert_from_latest(latest_path, history_path, now=now)
