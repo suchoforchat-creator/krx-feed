@@ -2,7 +2,8 @@ name: data-pipeline
 
 on:
   schedule:
-    - cron: '30 22 * * 1-5'
+    # 06:30 KST (21:30 UTC, previous day)
+    - cron: '30 21 * * 1-5'
     - cron: '00 08 * * 1-5'
   workflow_dispatch:
 
@@ -14,8 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  collect_0730:
-    #if: github.event.schedule == '30 22 * * 1-5'
+  collect_0630:
+    #if: github.event.schedule == '30 21 * * 1-5'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,7 +32,7 @@ jobs:
       - run: |
           git config user.name 'bot'
           git config user.email 'bot@users.noreply.github.com'
-          git add out/latest.csv out/daily || true
+          git add -A out/ || true
           git diff --cached --quiet || git commit -m "0730 snapshot $(date -u +%F)"
           git push
 
@@ -52,6 +53,15 @@ jobs:
       - run: |
           git config user.name 'bot'
           git config user.email 'bot@users.noreply.github.com'
-          git add out/latest.csv out/daily || true
+          # 디버깅 편의를 위해 out/ 폴더 전체를 스테이징하면 history.csv 누락을 쉽게 방지할 수 있습니다.
+          git add -A out/ || true
           git diff --cached --quiet || git commit -m "1700 final $(date -u +%F)"
-          git push
+          git push || true
+      - name: Upload history debug
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: history-debug-1700
+          path: |
+            debug/1700/*.json
+          if-no-files-found: ignore
