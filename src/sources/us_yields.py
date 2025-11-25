@@ -1,4 +1,4 @@
-"""미국 2년/10년 국채 수익률 수집기(v5).
+"""미국 2년/10년/10년 TIPS 국채 수익률 수집기(v5+TIPS).
 
 요구 사항
 ------------
@@ -38,6 +38,8 @@ TREASURY_TEXTVIEW_URL = (
 MARKETWATCH_URLS = {
     "UST2Y": "https://www.marketwatch.com/investing/bond/tmubmusd02y",
     "UST10Y": "https://www.marketwatch.com/investing/bond/tmubmusd10y",
+    # TIPS 10Y(실질금리) 보조 소스. 페이지 구조가 바뀔 수 있어 실패 시 디버그 로그를 남깁니다.
+    "TIPS10Y": "https://www.marketwatch.com/investing/bond/tips10y",
 }
 DEFAULT_HEADERS = {
     "User-Agent": (
@@ -58,9 +60,9 @@ class YieldFrame:
 
 
 class USTYieldCollector:
-    """미국 2Y/10Y 수익률을 순차적으로 수집한다."""
+    """미국 2Y/10Y/TIPS10Y 수익률을 순차적으로 수집한다."""
 
-    SERIES_IDS = {"UST2Y": "DGS2", "UST10Y": "DGS10"}
+    SERIES_IDS = {"UST2Y": "DGS2", "UST10Y": "DGS10", "TIPS10Y": "DFII10"}
 
     def __init__(self, session: requests.Session | None = None, timeout: int = 30) -> None:
         self._session = session or requests.Session()

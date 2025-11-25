@@ -49,6 +49,14 @@ def test_upsert_runs_even_outside_previous_window(tmp_path: Path) -> None:
     # 디버그 로그가 시간 가드 비활성화를 기록했는지 확인합니다.
     assert any(step["message"] == "시간 가드 비활성화" for step in report.steps)
 
+    assert history_path.exists()
+    frame = pd.read_csv(history_path, dtype=str).fillna("")
+    assert len(frame) == 1
+    record = frame.iloc[0]
+    assert record["time_kst"] == "2024-02-01 15:30:00"
+    assert float(record["kospi"]) == 2500
+    # 디버그 로그가 시간 가드 비활성화를 기록했는지 확인합니다.
+    assert any(step["message"] == "시간 가드 비활성화" for step in report.steps)
 
 def test_upsert_creates_row(tmp_path: Path) -> None:
     latest_path = tmp_path / "out" / "latest.csv"
@@ -280,6 +288,41 @@ def test_upsert_maps_vix(tmp_path: Path) -> None:
     assert report.field_status["vix"]["status"] == "ok_eod"
 
 
+def test_upsert_keeps_large_vix_values(tmp_path: Path) -> None:
+    """VIX가 다소 큰 값이어도 숫자라면 history에 남겨 디버깅할 수 있어야 합니다."""
+
+    latest_path = tmp_path / "out" / "latest.csv"
+    history_path = tmp_path / "out" / "history.csv"
+
+    # 이전에는 상한 150으로 잘렸지만, 이제는 값이 있으면 남긴다.
+    write_latest(
+        latest_path,
+        [
+            {
+                "ts_kst": "2024-02-06 15:30:00",
+                "asset": "VIX",
+                "key": "spot",
+                "value": 180.5,
+                "unit": "pt",
+                "window": "EOD",
+                "source": "cboe",
+                "quality": "secondary",
+                "notes": "",
+            }
+        ],
+    )
+
+    now = datetime(2024, 2, 6, 17, 1, tzinfo=KST)
+    report = update_history.upsert_from_latest(latest_path, history_path, now=now)
+
+    frame = pd.read_csv(history_path, dtype=str).fillna("")
+    record = frame.iloc[0]
+
+    assert float(record["vix"]) == 180.5
+    # 범위는 벗어났지만 값은 남고, 상태에는 range_violation 힌트가 담긴다.
+    assert report.field_status["vix"]["status"] in {"ok_eod", "range_violation"}
+
+
 def test_upsert_skips_out_of_range(tmp_path: Path) -> None:
     latest_path = tmp_path / "out" / "latest.csv"
     history_path = tmp_path / "out" / "history.csv"
@@ -307,6 +350,72 @@ def test_upsert_skips_out_of_range(tmp_path: Path) -> None:
     record = frame.iloc[0]
     assert pd.isna(record["ust2y"]) or record["ust2y"] == ""
     assert report.field_status["ust2y"]["status"] == "range_violation"
+
+
+def test_upsert_maps_k200_hv30(tmp_path: Path) -> None:
+    """compute 단계가 생성하는 K200 hv30이 올바르게 history로 매핑되는지 확인합니다."""
+
+    latest_path = tmp_path / "out" / "latest.csv"
+    history_path = tmp_path / "out" / "history.csv"
+
+    write_latest(
+        latest_path,
+        [
+            {
+                "ts_kst": "2024-02-10 15:30:00",
+                "asset": "K200",
+                "key": "hv30",
+                "value": 0.33,
+                "unit": "pct",
+                "window": "EOD",
+                "source": "compute",
+                "quality": "final",
+                "notes": "",
+            }
+        ],
+    )
+
+    now = datetime(2024, 2, 10, 17, 5, tzinfo=KST)
+    report = update_history.upsert_from_latest(latest_path, history_path, now=now)
+
+    frame = pd.read_csv(history_path, dtype=str).fillna("")
+    record = frame.iloc[0]
+
+    assert float(record["k200_hv30"]) == 0.33
+    assert report.field_status["k200_hv30"]["status"] == "ok_eod"
+
+
+def test_upsert_maps_tips10y(tmp_path: Path) -> None:
+    """TIPS10Y 수집 후 history에 기록되는지 검증합니다."""
+
+    latest_path = tmp_path / "out" / "latest.csv"
+    history_path = tmp_path / "out" / "history.csv"
+
+    write_latest(
+        latest_path,
+        [
+            {
+                "ts_kst": "2024-02-12 15:30:00",
+                "asset": "TIPS10Y",
+                "key": "yield",
+                "value": 1.12,
+                "unit": "pct",
+                "window": "EOD",
+                "source": "fred",
+                "quality": "final",
+                "notes": "",
+            }
+        ],
+    )
+
+    now = datetime(2024, 2, 12, 17, 1, tzinfo=KST)
+    report = update_history.upsert_from_latest(latest_path, history_path, now=now)
+
+    frame = pd.read_csv(history_path, dtype=str).fillna("")
+    record = frame.iloc[0]
+
+    assert float(record["tips10y"]) == 1.12
+    assert report.field_status["tips10y"]["status"] == "ok_eod"
 
 
 def test_upsert_writes_empty_row_when_latest_missing(tmp_path: Path) -> None:

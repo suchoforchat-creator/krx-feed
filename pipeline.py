@@ -54,7 +54,8 @@ def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
         ("Gold", "spot"),
         ("Copper", "spot"),
         ("BTC", "spot"),
-        ("KOSPI200", "hv30"),
+        # compute.py는 K200으로 변동성을 생성하므로 동일한 자산명을 사용한다.
+        ("K200", "hv30"),
         ("VIX", "spot"),
     }
 
@@ -160,12 +161,13 @@ def fetch_vix() -> Dict[str, object]:
 
     tried: list[tuple[str, str]] = []
 
-    # 0) yfinance (^VIX) — GitHub Actions에서 가장 안정적인 1차 소스
-    #    초심자 팁: yfinance는 내부적으로 UA/쿠키를 적절히 설정해 주므로 직접 HTML을 파싱하는 것보다 실패 확률이 낮습니다.
+    # 0) yfinance (^VIX)
+    # - GitHub Actions 환경에서 비교적 안정적인 공개 종가 소스입니다.
+    # - `history(period="2d")`를 써서 최신 값이 NaN일 때 바로 이전 영업일을 대신 사용합니다.
     try:
         ticker = yf.Ticker("^VIX")
-        # 2일치 일봉을 가져와 가장 최신 종가를 사용합니다.
         hist = ticker.history(period="2d", interval="1d")
+
         if not hist.empty and "Close" in hist.columns:
             value = float(hist["Close"].iloc[-1])
             if 8 <= value <= 150:
@@ -181,7 +183,7 @@ def fetch_vix() -> Dict[str, object]:
             _fail(tried, "yfinance", f"out_of_range:{value}")
         else:
             _fail(tried, "yfinance", "empty_history_or_no_close")
-    except Exception as exc:  # pragma: no cover
+    except Exception as exc:  # pragma: no cover - 네트워크/파싱 실패 대비
         _fail(tried, "yfinance", f"{type(exc).__name__}:{exc}")
 
     # ① Cboe 공식 JSON

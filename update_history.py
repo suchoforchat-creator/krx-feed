@@ -78,7 +78,8 @@ LATEST_TO_HISTORY: Dict[Tuple[str, str], str] = {
     ("Gold", "spot"): "gold",
     ("Copper", "spot"): "copper",
     ("BTC", "spot"): "btc",
-    ("KOSPI200", "hv30"): "k200_hv30",
+    # compute.py에서 K200으로 hv30을 생성하므로 매핑도 동일하게 맞춘다.
+    ("K200", "hv30"): "k200_hv30",
     ("VIX", "spot"): "vix",
 }
 
@@ -92,8 +93,9 @@ VALUE_VALIDATORS: Dict[str, Tuple[Optional[float], Optional[float]]] = {
     "kr10y": (0, 10),
     "tips10y": (0, 10),
     "dxy": (70, 130),
-    # VIX는 급변을 고려해 8~150pt 범위를 허용합니다.
-    "vix": (8, 150),
+    # VIX: history에서는 숫자인지만 확인하고, 범위 초과 여부는 디버깅 용도로만 남깁니다.
+    # 실거래/지표 해석 단계에서 추가 필터를 적용할 수 있도록 값을 최대한 살려둡니다.
+    "vix": (0.0, None),
     # 나머지 컬럼은 별도 범위 제한이 없습니다.
 }
 
@@ -266,8 +268,18 @@ def _build_history_row(
             debug.mark_field(column, "non_numeric", raw=value)
             continue
 
-        if not _validate_value(column, float(numeric_value)):
-            debug.mark_field(column, "range_violation", raw=value)
+        fv = float(numeric_value)
+        if not _validate_value(column, fv):
+            # VIX는 범위 제한을 완화했지만, 이상 수치는 디버깅 힌트로 남겨 추후 점검할 수 있게 합니다.
+            if column == "vix":
+                debug.mark_field(
+                    column,
+                    "range_violation",
+                    raw=value,
+                    hint="vix_validator_rejected; 확인 필요",
+                )
+            else:
+                debug.mark_field(column, "range_violation", raw=value)
             continue
 
         row[column] = str(value)
