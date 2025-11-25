@@ -288,43 +288,6 @@ class KISClient:
         section = self.fallback.get(group, {})
         return section.get(name)
 
-    def _fixture_kor_yields(self, periods: int = 120) -> pd.DataFrame:
-        fixtures = self.config.get("fixtures", {}).get("kor_yields", [])
-        if not fixtures:
-            return pd.DataFrame()
-
-        records: list[dict[str, Any]] = []
-        for row in fixtures:
-            date_value = row.get("date")
-            if not date_value:
-                continue
-            try:
-                dt = datetime.strptime(str(date_value), "%Y-%m-%d")
-            except ValueError:
-                logger.debug("잘못된 fixtures.kor_yields 날짜 포맷: %s", date_value)
-                continue
-            ts = datetime.combine(dt, time(17, 0), tzinfo=KST)
-            rec = {"ts_kst": ts}
-            for key in ("kr3y", "kr5y", "kr10y"):
-                if key in row and row[key] is not None:
-                    try:
-                        rec[key] = float(row[key])
-                    except (TypeError, ValueError):
-                        logger.debug("fixtures.kor_yields %s 변환 실패: %s", key, row[key])
-            if any(k in rec for k in ("kr3y", "kr10y")):
-                records.append(rec)
-
-        if not records:
-            return pd.DataFrame()
-
-        frame = pd.DataFrame(records)
-        frame = frame.sort_values("ts_kst").drop_duplicates(subset=["ts_kst"], keep="last")
-        frame = frame.tail(periods)
-        frame["source"] = "fixtures"
-        frame["quality"] = "secondary"
-        frame["url"] = self.config.get("fixtures", {}).get("kor_yields_url", "")
-        return frame.reset_index(drop=True)
-
     def _pykrx_kor_yields(self, periods: int = 120) -> pd.DataFrame:
         records: list[dict[str, Any]] = []
         candidates = {
@@ -391,10 +354,12 @@ class KISClient:
             if len(records) >= periods:
                 break
 
-        if not records:
-            return self._fixture_kor_yields(periods=periods)
-
         frame = pd.DataFrame(records)
+        if frame.empty:
+            return pd.DataFrame(
+                columns=["ts_kst", "kr3y", "kr10y", "source", "quality", "url"]
+            )
+
         frame = frame.drop_duplicates(subset=["ts_kst"]).sort_values("ts_kst").tail(periods)
         frame["source"] = "pykrx"
         frame["quality"] = "secondary"
@@ -537,19 +502,20 @@ class KISClient:
                 logger.warning("fx fallback failed for %s (%s): %s", name, symbol, exc)
         return pd.DataFrame()
 
-    def get_futures_series(self, name: str, periods: int = 120) -> pd.DataFrame:
+    def get_futures_series(self, name: str, periods: int = 120, alias: Optional[str] = None) -> pd.DataFrame:
         if self.use_live:
             try:
                 frame = self._fetch_series("futures", name, periods)
                 return frame
             except Exception as exc:
                 logger.warning("KIS 선물 조회 실패(%s): %s", name, exc)
-        symbol = self._fallback_symbol("futures", name)
+        lookup_key = alias or name
+        symbol = self._fallback_symbol("futures", lookup_key)
         if symbol:
             try:
                 return self._yf_history(symbol, periods)
             except Exception as exc:  # pragma: no cover - network dependent
-                logger.warning("futures fallback failed for %s (%s): %s", name, symbol, exc)
+                logger.warning("futures fallback failed for %s (%s): %s", lookup_key, symbol, exc)
         return pd.DataFrame()
 
     def _pykrx_snapshots(self) -> pd.DataFrame:
@@ -669,27 +635,6 @@ class KISClient:
                         missing.discard(alias)
                         if "pykrx" not in used_sources:
                             used_sources.append("pykrx")
-                        url = str(temp.get("url", pd.Series([""])).iloc[-1]) if not temp.empty else ""
-                        if url and url not in used_urls:
-                            used_urls.append(url)
-                        self.yield_failure_meta.pop(alias, None)
-
-        if missing:
-            fixture_frame = self._fixture_kor_yields()
-            if not fixture_frame.empty:
-                for alias, column in ("KR3Y", "kr3y"), ("KR10Y", "kr10y"):
-                    if alias in missing and column in fixture_frame.columns:
-                        series = fixture_frame[["ts_kst", column]].dropna()
-                        if series.empty:
-                            continue
-                        temp = series.rename(columns={column: "value"})
-                        temp["source"] = "fixtures"
-                        temp["quality"] = "secondary"
-                        temp["url"] = fixture_frame.get("url", pd.Series([self.config.get("fixtures", {}).get("kor_yields_url", "")]))
-                        frames[alias.lower()] = temp
-                        missing.discard(alias)
-                        if "fixtures" not in used_sources:
-                            used_sources.append("fixtures")
                         url = str(temp.get("url", pd.Series([""])).iloc[-1]) if not temp.empty else ""
                         if url and url not in used_urls:
                             used_urls.append(url)
