@@ -49,6 +49,14 @@ def test_upsert_runs_even_outside_previous_window(tmp_path: Path) -> None:
     # 디버그 로그가 시간 가드 비활성화를 기록했는지 확인합니다.
     assert any(step["message"] == "시간 가드 비활성화" for step in report.steps)
 
+    assert history_path.exists()
+    frame = pd.read_csv(history_path, dtype=str).fillna("")
+    assert len(frame) == 1
+    record = frame.iloc[0]
+    assert record["time_kst"] == "2024-02-01 15:30:00"
+    assert float(record["kospi"]) == 2500
+    # 디버그 로그가 시간 가드 비활성화를 기록했는지 확인합니다.
+    assert any(step["message"] == "시간 가드 비활성화" for step in report.steps)
 
 def test_upsert_creates_row(tmp_path: Path) -> None:
     latest_path = tmp_path / "out" / "latest.csv"
