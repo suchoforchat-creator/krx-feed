@@ -66,6 +66,7 @@ REQUIRED_KEYS = [
     "UST10Y:yield",
     "KR3Y:yield",
     "KR10Y:yield",
+    "TIPS10Y:yield",
     "WTI:spot",
     "Brent:spot",
     "Gold:spot",
@@ -287,6 +288,8 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     kr10y = _series_from_raw(raw, "KR10Y", "yield")
     ust2y = _series_from_raw(raw, "UST2Y", "yield")
     ust10y = _series_from_raw(raw, "UST10Y", "yield")
+    # TIPS10Y는 실질금리로, FRED/MarketWatch 소스에서 들어온 데이터를 그대로 사용한다.
+    tips10y = _series_from_raw(raw, "TIPS10Y", "yield")
 
     adv_kospi = _series_from_raw(raw, "KOSPI", "advance")
     dec_kospi = _series_from_raw(raw, "KOSPI", "decline")
@@ -355,6 +358,8 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
         ("UST10Y", "yield"): (0.0, 20.0),
         ("KR3Y", "yield"): (0.0, 20.0),
         ("KR10Y", "yield"): (0.0, 20.0),
+        # 실질금리(TIPS10Y)는 0~10% 범위 내에서만 유효한 값으로 본다.
+        ("TIPS10Y", "yield"): (0.0, 10.0),
         ("2s10s_US", "spread"): (-300.0, 300.0),
         ("2s10s_KR", "spread"): (-300.0, 300.0),
     }
@@ -575,6 +580,8 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     yield_record(ust10y, "UST10Y")
     yield_record(kr3y, "KR3Y")
     yield_record(kr10y, "KR10Y")
+    # 10년 만기 TIPS(실질금리)도 동일한 로직으로 기록한다.
+    yield_record(tips10y, "TIPS10Y")
 
     def add_spread(
         asset: str,
