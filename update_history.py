@@ -160,7 +160,11 @@ def _load_latest(latest_path: Path, debug: DebugReport) -> pd.DataFrame:
             frame[required] = ""
 
     # 날짜 비교를 위해 KST 기준 날짜 컬럼을 추가합니다.
-    frame["ts_kst"] = pd.to_datetime(frame["ts_kst"], errors="coerce")
+    # latest.csv의 ts_kst는 "2024-02-06 15:30"처럼 분 단위 형식과
+    # "2024-02-06 15:30:22"처럼 초 단위 형식이 섞여 있습니다.
+    # pandas가 하나의 포맷만 추론하면 초 단위 값이 NaT로 변해 기록이 누락될 수
+    # 있으므로, format="mixed"로 두 형식을 모두 받아들이도록 안전 가드를 둡니다.
+    frame["ts_kst"] = pd.to_datetime(frame["ts_kst"], errors="coerce", format="mixed")
     frame["window"] = frame["window"].fillna("")
     frame["date_kst"] = frame["ts_kst"].dt.date
     return frame
