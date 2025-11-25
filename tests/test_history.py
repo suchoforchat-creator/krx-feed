@@ -323,6 +323,51 @@ def test_upsert_keeps_large_vix_values(tmp_path: Path) -> None:
     assert report.field_status["vix"]["status"] in {"ok_eod", "range_violation"}
 
 
+def test_upsert_accepts_second_precision_timestamps(tmp_path: Path) -> None:
+    """VIX와 같이 초 단위 타임스탬프가 섞여 있어도 history에 남아야 합니다."""
+
+    latest_path = tmp_path / "out" / "latest.csv"
+    history_path = tmp_path / "out" / "history.csv"
+
+    # KOSPI는 분 단위, VIX는 초 단위 타임스탬프를 사용해 섞여 있는 상황을 구성합니다.
+    write_latest(
+        latest_path,
+        [
+            {
+                "ts_kst": "2024-02-06 15:30:00",
+                "asset": "KOSPI",
+                "key": "idx",
+                "value": 2600.0,
+                "unit": "pt",
+                "window": "EOD",
+                "source": "krx",
+                "quality": "final",
+                "notes": "",
+            },
+            {
+                "ts_kst": "2024-02-06 15:30:22",
+                "asset": "VIX",
+                "key": "spot",
+                "value": 19.05,
+                "unit": "pt",
+                "window": "1D",
+                "source": "yfinance",
+                "quality": "secondary",
+                "notes": "",
+            },
+        ],
+    )
+
+    now = datetime(2024, 2, 6, 17, 1, tzinfo=KST)
+    report = update_history.upsert_from_latest(latest_path, history_path, now=now)
+
+    frame = pd.read_csv(history_path, dtype=str).fillna("")
+    record = frame.iloc[0]
+
+    assert float(record["vix"]) == 19.05
+    assert report.field_status["vix"]["status"] == "ok_any"
+
+
 def test_upsert_skips_out_of_range(tmp_path: Path) -> None:
     latest_path = tmp_path / "out" / "latest.csv"
     history_path = tmp_path / "out" / "history.csv"
