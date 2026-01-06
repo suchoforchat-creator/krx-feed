@@ -1,34 +1,34 @@
 ts_kst,asset,key,value,unit,window,change_abs,change_pct,source,quality,url,notes
-2026-01-06 06:45,KOSPI,idx,4457.52002,pt,1D,147.890137,0.034316,YahooFinance(^KS11),secondary,https://finance.yahoo.com/quote/^KS11,
-2026-01-06 06:45,KOSDAQ,idx,957.5,pt,1D,11.929993,0.012617,YahooFinance(^KQ11),secondary,https://finance.yahoo.com/quote/^KQ11,
-2026-01-06 06:45,KOSPI,advance,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-2026-01-06 06:45,KOSPI,decline,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-2026-01-06 06:45,KOSPI,unchanged,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-2026-01-06 06:45,KOSDAQ,advance,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-2026-01-06 06:45,KOSDAQ,decline,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-2026-01-06 06:45,KOSDAQ,unchanged,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-2026-01-06 06:45,KOSPI,limit_up,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-2026-01-06 06:45,KOSPI,limit_down,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-2026-01-06 06:45,KOSPI,trin,,ratio,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-2026-01-06 06:45,KOSPI,trading_value,,KRW,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
-2026-01-06 06:45,K200,hv30,0.284504,vol,30D,,,YahooFinance(^KS200),secondary,https://finance.yahoo.com/quote/^KS200,
-2026-01-06 06:45,ES,basis,0.006259,ratio,1D,,,YahooFinance(ES=F),secondary,https://finance.yahoo.com/quote/ES=F,
-2026-01-06 06:45,NQ,basis,0.00727,ratio,1D,,,YahooFinance(NQ=F),secondary,https://finance.yahoo.com/quote/NQ=F,
-2026-01-06 06:45,SOX,ret_1w,0.033133,return,1W,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
-2026-01-06 06:45,SOX,ret_1m,0.022793,return,1M,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
-2026-01-06 06:45,USD/KRW,spot,1445.380005,KRW,1D,1.73999,0.001205,YahooFinance(KRW=X),secondary,https://finance.yahoo.com/quote/KRW=X,
-2026-01-06 06:45,DXY,idx,98.31,idx,1D,,,marketwatch,secondary,https://www.marketwatch.com/investing/index/dxy,fallback:marketwatch
-2026-01-06 06:45,UST2Y,yield,3.47,pct,1D,,,fred,secondary,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2,ok:fred
-2026-01-06 06:45,UST10Y,yield,4.19,pct,1D,,,fred,secondary,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10,ok:fred
-2026-01-06 06:45,KR3Y,yield,,pct,1D,,,KIS,primary,,"parse_failed:https://www.investing.com/rates-bonds/south-korea-3-year-bond-yield,node_missing"
-2026-01-06 06:45,KR10Y,yield,,pct,1D,,,KIS,primary,,"parse_failed:https://www.investing.com/rates-bonds/south-korea-10-year-bond-yield,node_missing"
-2026-01-06 06:45,TIPS10Y,yield,1.94,pct,1D,,,fred,secondary,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFII10,ok:fred
-2026-01-06 06:45,2s10s_US,spread,72.0,bp,1D,,,fred,secondary,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10 https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2,ok
-2026-01-06 06:45,2s10s_KR,spread,,bp,1D,,,KIS,primary,,upstream_missing:KR10Y|KR3Y
-2026-01-06 06:45,WTI,spot,58.369999,USD,1D,1.049999,0.018318,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/CL=F,
-2026-01-06 06:45,Brent,spot,61.830002,USD,1D,1.080002,0.017778,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BZ=F,
-2026-01-06 06:45,Gold,spot,4458.5,USD,1D,144.100098,0.0334,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/GC=F,
-2026-01-06 06:45,Copper,spot,5.9815,USD,1D,0.3415,0.06055,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/HG=F,
-2026-01-06 06:45,BTC,spot,94120.335938,USD,1D,2706.84375,0.029611,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
-2026-01-06 06:45,BTC,corr20,0.282129,corr,20D,,,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
-2026-01-06 06:45:44,VIX,spot,14.899999618530273,pt,1D,,,yfinance,secondary,https://finance.yahoo.com/quote/%5EVIX,
+2026-01-06 17:16,KOSPI,idx,4525.47998,pt,EOD,67.959961,0.015246,YahooFinance(^KS11),final,https://finance.yahoo.com/quote/^KS11,
+2026-01-06 17:16,KOSDAQ,idx,955.969971,pt,EOD,-1.530029,-0.001598,YahooFinance(^KQ11),final,https://finance.yahoo.com/quote/^KQ11,
+2026-01-06 17:16,KOSPI,advance,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+2026-01-06 17:16,KOSPI,decline,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+2026-01-06 17:16,KOSPI,unchanged,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+2026-01-06 17:16,KOSDAQ,advance,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+2026-01-06 17:16,KOSDAQ,decline,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+2026-01-06 17:16,KOSDAQ,unchanged,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+2026-01-06 17:16,KOSPI,limit_up,,issues,1D,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+2026-01-06 17:16,KOSPI,limit_down,,issues,1D,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+2026-01-06 17:16,KOSPI,trin,,ratio,1D,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+2026-01-06 17:16,KOSPI,trading_value,,KRW,1D,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd"
+2026-01-06 17:16,K200,hv30,0.282762,vol,30D,,,YahooFinance(^KS200),final,https://finance.yahoo.com/quote/^KS200,
+2026-01-06 17:16,ES,basis,0.006802,ratio,1D,,,YahooFinance(ES=F),final,https://finance.yahoo.com/quote/ES=F,
+2026-01-06 17:16,NQ,basis,0.00918,ratio,1D,,,YahooFinance(NQ=F),final,https://finance.yahoo.com/quote/NQ=F,
+2026-01-06 17:16,SOX,ret_1w,0.033133,return,1W,,,YahooFinance(^SOX),final,https://finance.yahoo.com/quote/^SOX,
+2026-01-06 17:16,SOX,ret_1m,0.022792,return,1M,,,YahooFinance(^SOX),final,https://finance.yahoo.com/quote/^SOX,
+2026-01-06 17:16,USD/KRW,spot,1445.089966,KRW,EOD,4.609985,0.0032,YahooFinance(KRW=X),final,https://finance.yahoo.com/quote/KRW=X,
+2026-01-06 17:16,DXY,idx,98.19,idx,EOD,,,marketwatch,final,https://www.marketwatch.com/investing/index/dxy,fallback:marketwatch
+2026-01-06 17:16,UST2Y,yield,3.47,pct,EOD,,,fred,final,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2,ok:fred
+2026-01-06 17:16,UST10Y,yield,4.19,pct,EOD,,,fred,final,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10,ok:fred
+2026-01-06 17:16,KR3Y,yield,,pct,EOD,,,KIS,final,,"parse_failed:https://www.investing.com/rates-bonds/south-korea-3-year-bond-yield,node_missing"
+2026-01-06 17:16,KR10Y,yield,,pct,EOD,,,KIS,final,,"parse_failed:https://www.investing.com/rates-bonds/south-korea-10-year-bond-yield,node_missing"
+2026-01-06 17:16,TIPS10Y,yield,1.94,pct,EOD,,,fred,final,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DFII10,ok:fred
+2026-01-06 17:16,2s10s_US,spread,72.0,bp,1D,,,fred,final,https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10 https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2,ok
+2026-01-06 17:16,2s10s_KR,spread,,bp,1D,,,KIS,final,,upstream_missing:KR10Y|KR3Y
+2026-01-06 17:16,WTI,spot,57.889999,USD,1D,-0.43,-0.007373,finance.yahoo.com,final,https://finance.yahoo.com/quote/CL=F,
+2026-01-06 17:16,Brent,spot,61.369999,USD,1D,-0.389999,-0.006315,finance.yahoo.com,final,https://finance.yahoo.com/quote/BZ=F,
+2026-01-06 17:16,Gold,spot,4472.5,USD,1D,35.600098,0.008024,finance.yahoo.com,final,https://finance.yahoo.com/quote/GC=F,
+2026-01-06 17:16,Copper,spot,6.0665,USD,1D,0.142,0.023968,finance.yahoo.com,final,https://finance.yahoo.com/quote/HG=F,
+2026-01-06 17:16,BTC,spot,93268.4375,USD,1D,-614.117188,-0.006541,finance.yahoo.com,final,https://finance.yahoo.com/quote/BTC-USD,
+2026-01-06 17:16,BTC,corr20,0.024702,corr,20D,,,finance.yahoo.com,final,https://finance.yahoo.com/quote/BTC-USD,
+2026-01-06 17:25:43,VIX,spot,14.899999618530273,pt,1D,,,yfinance,final,https://finance.yahoo.com/quote/%5EVIX,
