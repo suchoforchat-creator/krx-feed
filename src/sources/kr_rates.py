@@ -193,10 +193,23 @@ class KRXKorRates:
             return None, f"parse_failed:{url},bs4_missing"
 
         soup = bs4.BeautifulSoup(response.text, "lxml")
-        price_node = soup.select_one(".instrument-price_last__KQzyA") or soup.select_one("span[data-test='instrument-price-last']")
+        # Investing.com은 data-test 속성만 유지되는 경우가 있어 span/div 모두 확인한다.
+        price_node = (
+            soup.select_one(".instrument-price_last__KQzyA")
+            or soup.select_one("span[data-test='instrument-price-last']")
+            or soup.select_one("div[data-test='instrument-price-last']")
+        )
         if price_node is None:
-            return None, f"parse_failed:{url},node_missing"
-        value = self._clean(price_node.text)
+            # 마지막 수단으로 정규식 파싱을 시도해 HTML 구조 변경에 대비한다.
+            match = re.search(
+                r'data-test="instrument-price-last"[^>]*>([^<]+)</',
+                response.text,
+            )
+            if not match:
+                return None, f"parse_failed:{url},node_missing"
+            value = self._clean(match.group(1))
+        else:
+            value = self._clean(price_node.text)
         if not (0 < value < 10):
             return None, f"range_violation:{url},0-10pct"
         return (

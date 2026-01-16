@@ -673,11 +673,36 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
             )
         )
 
-    btc_corr = rolling_corr(
-        np.log(btc.series).diff().dropna(),
-        np.log(nq.series).diff().dropna(),
-        20,
-    )
+    # BTC-NQ 20일 상관은 두 시계열이 충분해야 계산 가능하므로,
+    # NQ가 비어 있으면 NDX로 폴백하여 값 공백을 줄인다.
+    btc_returns = np.log(btc.series).diff().dropna()
+    nq_returns = np.log(nq.series).diff().dropna()
+    ndx_returns = np.log(ndx.series).diff().dropna()
+    corr_note = note("BTC", "corr20")
+    btc_corr = rolling_corr(btc_returns, nq_returns, 20)
+    corr_source = "+".join({src for src in [btc.source, nq.source] if src})
+    corr_quality = nq.quality or btc.quality
+    corr_url = " ".join([part for part in [btc.url, nq.url] if part])
+
+    if np.isnan(btc_corr):
+        fallback_corr = rolling_corr(btc_returns, ndx_returns, 20)
+        if not np.isnan(fallback_corr):
+            btc_corr = fallback_corr
+            corr_note = _append_note(corr_note, "fallback:ndx")
+            corr_source = "+".join({src for src in [btc.source, ndx.source] if src})
+            corr_quality = ndx.quality or btc.quality
+            corr_url = " ".join([part for part in [btc.url, ndx.url] if part])
+        else:
+            missing_parts: list[str] = []
+            if len(btc_returns) < 20:
+                missing_parts.append("BTC")
+            if len(nq_returns) < 20:
+                missing_parts.append("NQ")
+            if missing_parts:
+                corr_note = _append_note(
+                    corr_note,
+                    f"upstream_missing:{'|'.join(sorted(set(missing_parts)))}",
+                )
     records.append(
         _record(
             ts_kst,
@@ -688,10 +713,10 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
             "20D",
             float("nan"),
             float("nan"),
-            btc.source,
-            btc.quality,
-            btc.url,
-            notes=note("BTC", "corr20"),
+            corr_source or btc.source,
+            corr_quality or btc.quality,
+            corr_url or btc.url,
+            notes=corr_note,
         )
     )
 
