@@ -7,6 +7,7 @@
 
 from __future__ import annotations
 
+import io
 import logging
 import math
 import os
@@ -95,6 +96,7 @@ class BreadthResult:
 class KRXBreadthCollector:
     MENU_ID = "MDC0201020102"
     PYKRX_URL = "https://github.com/sharebook-kr/pykrx"
+    NAVER_URL = "https://finance.naver.com/sise/sise_market_sum.naver"
 
     def __init__(
         self,
@@ -418,6 +420,137 @@ class KRXBreadthCollector:
 
         return pd.DataFrame(records), notes
 
+    def _fetch_naver_market_sum(self, market: str) -> pd.DataFrame:
+        """네이버 시가총액 페이지에서 전종목 데이터를 수집한다."""
+
+        sosok = {"KOSPI": "0", "KOSDAQ": "1"}[market]
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "Referer": "https://finance.naver.com/",
+        }
+        first_url = f"{self.NAVER_URL}?sosok={sosok}&page=1"
+        response = requests.get(first_url, headers=headers, timeout=20)
+        response.raise_for_status()
+
+        try:
+            import bs4  # type: ignore
+        except Exception as exc:  # pragma: no cover - 환경 의존
+            raise RuntimeError(f"bs4_missing:{exc}") from exc
+
+        soup = bs4.BeautifulSoup(response.text, "lxml")
+        last_link = soup.select_one("td.pgRR > a")
+        last_page = 1
+        if last_link and "page=" in last_link.get("href", ""):
+            try:
+                last_page = int(last_link["href"].split("page=")[-1])
+            except ValueError:
+                last_page = 1
+
+        frames: List[pd.DataFrame] = []
+        for page in range(1, last_page + 1):
+            page_url = f"{self.NAVER_URL}?sosok={sosok}&page={page}"
+            page_response = requests.get(page_url, headers=headers, timeout=20)
+            page_response.raise_for_status()
+            tables = pd.read_html(io.StringIO(page_response.text))
+            if len(tables) < 2:
+                continue
+            page_frame = tables[1]
+            page_frame = page_frame.dropna(subset=["종목명"]).copy()
+            if not page_frame.empty:
+                frames.append(page_frame)
+        if not frames:
+            raise ValueError("empty_frame")
+        return pd.concat(frames, ignore_index=True)
+
+    def _aggregate_naver_market(
+        self,
+        target_date: date,
+        market: str,
+        frame: pd.DataFrame,
+    ) -> Tuple[pd.DataFrame, Dict[str, str]]:
+        """네이버 시가총액 표로 A/D/TRIN 등을 계산한다."""
+
+        url = self.NAVER_URL
+        notes: Dict[str, str] = {}
+
+        price = self._to_numeric(frame.get("현재가", pd.Series(dtype=str)))
+        pct = self._to_numeric(frame.get("등락률", pd.Series(dtype=str)))
+        volume = self._to_numeric(frame.get("거래량", pd.Series(dtype=str)))
+
+        advance_mask = pct > 0
+        decline_mask = pct < 0
+        unchanged_mask = pct == 0
+
+        advance = float(advance_mask.sum())
+        decline = float(decline_mask.sum())
+        unchanged = float(unchanged_mask.sum())
+
+        # 거래대금은 제공되지 않으므로 현재가 * 거래량으로 근사한다.
+        trading_value = float((price * volume).sum())
+        trading_note = "fallback:naver"
+        if trading_value < 0:
+            trading_note = f"range_violation:{url},lt_zero"
+            trading_value = float("nan")
+
+        limit_threshold = 29.5
+        limit_up = float((pct >= limit_threshold).sum())
+        limit_down = float((pct <= -limit_threshold).sum())
+
+        adv_volume = float(volume[advance_mask].sum())
+        dec_volume = float(volume[decline_mask].sum())
+        trin_value = float("nan")
+        trin_note = ""
+        if all(val > 0 for val in [advance, decline, adv_volume, dec_volume]):
+            trin_value = (advance / decline) / (adv_volume / dec_volume)
+            if not 0.1 <= trin_value <= 10:
+                trin_note = f"range_violation:{url},0.1-10"
+                trin_value = float("nan")
+        else:
+            trin_note = f"upstream_missing:{url},zero_volume"
+
+        logger.debug(
+            "krx_breadth::_aggregate_naver_market :: market=%s rows=%d adv=%d dec=%d unch=%d",
+            market,
+            len(frame),
+            advance,
+            decline,
+            unchanged,
+        )
+
+        ts = datetime.combine(target_date, dtime(hour=15, minute=30), tzinfo=KST)
+        records: List[Dict[str, object]] = []
+
+        def register(field: str, value: float, unit: str, note: str) -> None:
+            notes[f"{market}:{field}"] = note
+            records.append(
+                {
+                    "ts_kst": ts,
+                    "asset": market,
+                    "field": field,
+                    "value": value,
+                    "unit": unit,
+                    "window": "EOD",
+                    "source": "naver",
+                    "quality": "secondary",
+                    "url": url,
+                    "notes": note,
+                }
+            )
+
+        register("advance", advance, "issues", "fallback:naver")
+        register("decline", decline, "issues", "fallback:naver")
+        register("unchanged", unchanged, "issues", "fallback:naver")
+        register("trading_value", trading_value, "KRW", trading_note)
+        register("limit_up", limit_up, "issues", "fallback:naver")
+        register("limit_down", limit_down, "issues", "fallback:naver")
+
+        if math.isnan(trin_value):
+            notes[f"{market}:trin"] = trin_note or f"parse_failed:{url},trin_unavailable"
+        else:
+            register("trin", trin_value, "ratio", "fallback:naver")
+
+        return pd.DataFrame(records), notes
+
     @staticmethod
     def _fetch_widget_counts(target: date) -> Dict[str, int] | None:
         try:
@@ -494,6 +627,25 @@ class KRXBreadthCollector:
         except Exception as exc:  # pragma: no cover - 네트워크/외부 라이브러리 의존
             last_error = exc
             logger.warning("KRX breadth pykrx fallback failed: %s", exc)
+
+        # 2차 실패 시 네이버 시가총액 페이지에서 전종목 데이터를 가져온다.
+        try:
+            frames = {}
+            notes = {}
+            for market in ("KOSPI", "KOSDAQ"):
+                market_frame = self._fetch_naver_market_sum(market)
+                aggregated, metric_notes = self._aggregate_naver_market(
+                    target_date, market, market_frame
+                )
+                if not aggregated.empty:
+                    frames[market] = aggregated
+                notes.update(metric_notes)
+            if frames:
+                logger.debug("KRX breadth fallback: using Naver market summary")
+                return BreadthResult(frames=frames, notes=notes)
+        except Exception as exc:  # pragma: no cover - 네트워크/HTML 의존
+            last_error = exc
+            logger.warning("KRX breadth Naver fallback failed: %s", exc)
 
         notes: Dict[str, str] = {}
         frames: Dict[str, pd.DataFrame] = {}
