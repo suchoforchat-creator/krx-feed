@@ -17,6 +17,7 @@ from typing import Dict, Iterable, List, Tuple
 
 import pandas as pd
 import requests
+from pykrx import stock
 
 from ..utils import KST
 from .krx_client import KrxClient
@@ -93,6 +94,7 @@ class BreadthResult:
 
 class KRXBreadthCollector:
     MENU_ID = "MDC0201020102"
+    PYKRX_URL = "https://github.com/sharebook-kr/pykrx"
 
     def __init__(
         self,
@@ -315,6 +317,107 @@ class KRXBreadthCollector:
 
         return pd.DataFrame(records), notes
 
+    def _fetch_pykrx_snapshot(self, target: date, market: str) -> Tuple[pd.DataFrame, date]:
+        """pykrx로 전 종목 스냅샷을 받아온다.
+
+        KRX API가 막혔을 때를 대비한 폴백이며, 가장 가까운 영업일을 찾아
+        빈 DataFrame을 피하도록 한다.
+        """
+
+        # 초심자 팁: 공휴일/주말에는 데이터가 비어 있으니 최근 날짜부터 확인한다.
+        for offset in range(10):
+            probe_date = target - timedelta(days=offset)
+            date_str = probe_date.strftime("%Y%m%d")
+            snapshot = stock.get_market_ohlcv_by_ticker(date_str, market=market)
+            if not snapshot.empty:
+                return snapshot, probe_date
+        raise ValueError("pykrx_empty_frame")
+
+    def _aggregate_snapshot(
+        self,
+        target_date: date,
+        market: str,
+        snapshot: pd.DataFrame,
+        actual_date: date,
+    ) -> Tuple[pd.DataFrame, Dict[str, str]]:
+        """pykrx 스냅샷으로 A/D/TRIN 등 지표를 계산한다."""
+
+        url = self.PYKRX_URL
+        notes: Dict[str, str] = {}
+        # 등락률(%)로 상승/하락/보합을 계산한다.
+        pct = pd.to_numeric(snapshot.get("등락률"), errors="coerce").fillna(0.0)
+        volume = pd.to_numeric(snapshot.get("거래량"), errors="coerce").fillna(0.0)
+        value_traded = pd.to_numeric(snapshot.get("거래대금"), errors="coerce").fillna(0.0)
+
+        advance_mask = pct > 0
+        decline_mask = pct < 0
+        unchanged_mask = pct == 0
+
+        advance = float(advance_mask.sum())
+        decline = float(decline_mask.sum())
+        unchanged = float(unchanged_mask.sum())
+
+        trading_value = float(value_traded.sum())
+        trading_note = "fallback:pykrx"
+        if trading_value < 0:
+            trading_note = f"range_violation:{url},lt_zero"
+            trading_value = float("nan")
+
+        # KRX 상/하한 기준(±30%)에 맞추기 위해 29.5%를 임계치로 둔다.
+        limit_threshold = 29.5
+        limit_up = float((pct >= limit_threshold).sum())
+        limit_down = float((pct <= -limit_threshold).sum())
+
+        adv_volume = float(volume[advance_mask].sum())
+        dec_volume = float(volume[decline_mask].sum())
+        trin_value = float("nan")
+        trin_note = ""
+        if all(val > 0 for val in [advance, decline, adv_volume, dec_volume]):
+            trin_value = (advance / decline) / (adv_volume / dec_volume)
+            if not 0.1 <= trin_value <= 10:
+                trin_note = f"range_violation:{url},0.1-10"
+                trin_value = float("nan")
+        else:
+            trin_note = f"upstream_missing:{url},zero_volume"
+
+        ts = datetime.combine(actual_date, dtime(hour=15, minute=30), tzinfo=KST)
+        date_note = "fallback:pykrx"
+        if actual_date != target_date:
+            date_note = f"fallback:pykrx:date_shift:{actual_date.strftime('%Y%m%d')}"
+
+        records: List[Dict[str, object]] = []
+
+        def register(field: str, value: float, unit: str, note: str) -> None:
+            notes[f"{market}:{field}"] = note
+            records.append(
+                {
+                    "ts_kst": ts,
+                    "asset": market,
+                    "field": field,
+                    "value": value,
+                    "unit": unit,
+                    "window": "EOD",
+                    "source": "pykrx",
+                    "quality": "secondary",
+                    "url": url,
+                    "notes": note,
+                }
+            )
+
+        register("advance", advance, "issues", date_note)
+        register("decline", decline, "issues", date_note)
+        register("unchanged", unchanged, "issues", date_note)
+        register("trading_value", trading_value, "KRW", trading_note)
+        register("limit_up", limit_up, "issues", date_note)
+        register("limit_down", limit_down, "issues", date_note)
+
+        if math.isnan(trin_value):
+            notes[f"{market}:trin"] = trin_note or f"parse_failed:{url},trin_unavailable"
+        else:
+            register("trin", trin_value, "ratio", date_note)
+
+        return pd.DataFrame(records), notes
+
     @staticmethod
     def _fetch_widget_counts(target: date) -> Dict[str, int] | None:
         try:
@@ -372,6 +475,25 @@ class KRXBreadthCollector:
                 if not wait_enabled or time.time() >= deadline:
                     break
                 time.sleep(self._poll_seconds)
+
+        # 1차 실패 시 pykrx로 전 종목 스냅샷을 받아 계산한다.
+        try:
+            frames = {}
+            notes = {}
+            for market in ("KOSPI", "KOSDAQ"):
+                snapshot, actual_date = self._fetch_pykrx_snapshot(target_date, market)
+                aggregated, metric_notes = self._aggregate_snapshot(
+                    target_date, market, snapshot, actual_date
+                )
+                if not aggregated.empty:
+                    frames[market] = aggregated
+                notes.update(metric_notes)
+            if frames:
+                logger.debug("KRX breadth fallback: using pykrx snapshot")
+                return BreadthResult(frames=frames, notes=notes)
+        except Exception as exc:  # pragma: no cover - 네트워크/외부 라이브러리 의존
+            last_error = exc
+            logger.warning("KRX breadth pykrx fallback failed: %s", exc)
 
         notes: Dict[str, str] = {}
         frames: Dict[str, pd.DataFrame] = {}
