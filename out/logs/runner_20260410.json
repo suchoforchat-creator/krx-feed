@@ -2,3 +2,7 @@
 {"event": "raw", "ts": "2026-04-10T07:08:18.044312+09:00", "assets": ["KOSPI", "KOSDAQ", "K200", "SPX", "NDX", "SOX", "USD/KRW", "ES", "NQ", "UST2Y", "UST10Y", "DXY", "WTI", "Brent", "Gold", "Copper", "BTC"]}
 {"event": "coverage", "ts": "2026-04-10T07:08:18.044312+09:00", "ratio": 0.875}
 {"event": "success", "ts": "2026-04-10T07:08:18.044312+09:00", "phase": "0730"}
+{"event": "start", "ts": "2026-04-10T12:16:03.147776+09:00", "phase": "0730"}
+{"event": "raw", "ts": "2026-04-10T12:16:03.147776+09:00", "assets": ["KOSPI", "KOSDAQ", "K200", "SPX", "NDX", "SOX", "USD/KRW", "ES", "NQ", "UST2Y", "UST10Y", "TIPS10Y", "DXY", "WTI", "Brent", "Gold", "Copper", "BTC"]}
+{"event": "coverage", "ts": "2026-04-10T12:16:03.147776+09:00", "ratio": 0.90625}
+{"event": "success", "ts": "2026-04-10T12:16:03.147776+09:00", "phase": "0730"}
