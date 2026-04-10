@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 from datetime import date, datetime, time as dtime, timedelta
@@ -31,12 +32,17 @@ logger = logging.getLogger(__name__)
 KRX_URL = "https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401"
 KOFIA_URL = "https://www.kofiabond.or.kr/websquare/websquare.html?divisionId=MBIS01010010000000"
 ECOS_URL = "https://ecos.bok.or.kr/"
+ECOS_STAT_URL = "https://ecos.bok.or.kr/api/StatisticSearch"
 INVESTING_URLS = {
     "KR3Y": "https://www.investing.com/rates-bonds/south-korea-3-year-bond-yield",
     "KR10Y": "https://www.investing.com/rates-bonds/south-korea-10-year-bond-yield",
 }
 
 YIELD_COLUMNS = ["LST_ORD_BAS_YD", "LST_ORD_YD", "수익률", "YLD", "APPL_YD"]
+ECOS_ITEM_CODES = {
+    "KR3Y": "0101000",
+    "KR10Y": "0103000",
+}
 
 
 def _previous_business_day(target: date) -> date:
@@ -177,7 +183,80 @@ class KRXKorRates:
         )
 
     def _fetch_ecos(self, target: date, asset: str, keyword: str) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
-        return None, f"parse_failed:{ECOS_URL},auth_required"
+        api_key = os.getenv("BOK_API_KEY", "").strip()
+        if not api_key:
+            return None, f"parse_failed:{ECOS_URL},api_key_missing"
+
+        item_code = ECOS_ITEM_CODES.get(asset)
+        if not item_code:
+            return None, f"parse_failed:{ECOS_URL},item_code_missing"
+
+        end = target.strftime("%Y%m%d")
+        start = (target - timedelta(days=40)).strftime("%Y%m%d")
+        url = "/".join(
+            [
+                ECOS_STAT_URL,
+                api_key,
+                "json",
+                "kr",
+                "1",
+                "400",
+                "060Y001",
+                "DD",
+                start,
+                end,
+                item_code,
+                "",
+                "",
+            ]
+        )
+        try:
+            response = self._session.get(url, timeout=20)
+            response.raise_for_status()
+            payload = response.json()
+        except Exception as exc:  # pragma: no cover
+            return None, f"parse_failed:{ECOS_URL},{exc}"
+
+        rows = payload.get("StatisticSearch", {}).get("row", [])
+        if not rows:
+            logger.debug("kr_rates::_fetch_ecos empty rows asset=%s payload_keys=%s", asset, list(payload.keys()))
+            return None, f"parse_failed:{ECOS_URL},empty"
+
+        frame = pd.DataFrame(rows)
+        if "TIME" not in frame.columns or "DATA_VALUE" not in frame.columns:
+            logger.debug("kr_rates::_fetch_ecos missing fields asset=%s columns=%s", asset, list(frame.columns))
+            return None, f"parse_failed:{ECOS_URL},field_missing"
+
+        frame["TIME"] = pd.to_datetime(frame["TIME"], format="%Y%m%d", errors="coerce")
+        frame["DATA_VALUE"] = pd.to_numeric(frame["DATA_VALUE"], errors="coerce")
+        frame = frame.dropna(subset=["TIME", "DATA_VALUE"]).sort_values("TIME")
+        if frame.empty:
+            return None, f"parse_failed:{ECOS_URL},empty_after_clean"
+
+        valid = frame[(frame["DATA_VALUE"] > 0) & (frame["DATA_VALUE"] < 10)]
+        if valid.empty:
+            logger.debug(
+                "kr_rates::_fetch_ecos range_violation asset=%s sample=%s",
+                asset,
+                frame[["TIME", "DATA_VALUE"]].tail(5).to_dict("records"),
+            )
+            return None, f"range_violation:{ECOS_URL},0-10pct"
+
+        current = float(valid.iloc[-1]["DATA_VALUE"])
+        prev = float(valid.iloc[-2]["DATA_VALUE"]) if len(valid) >= 2 else None
+        prev_date = valid.iloc[-2]["TIME"].date() if len(valid) >= 2 else None
+        return (
+            {
+                "value": current,
+                "prev": prev,
+                "prev_date": prev_date,
+                "source": "BOK_ECOS",
+                "quality": "secondary",
+                "url": ECOS_URL,
+                "note": "fallback:ecos",
+            },
+            None,
+        )
 
     def _fetch_investing(self, target: date, asset: str, keyword: str) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
         url = INVESTING_URLS[asset]

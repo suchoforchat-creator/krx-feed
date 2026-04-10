@@ -35,6 +35,10 @@ TREASURY_TEXTVIEW_URL = (
     "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/"
     "TextView?type=daily_treasury_yield_curve&field_tdr_date_value={year}"
 )
+TREASURY_REAL_TEXTVIEW_URL = (
+    "https://home.treasury.gov/resource-center/data-chart-center/interest-rates/"
+    "TextView?type=daily_treasury_real_yield_curve&field_tdr_date_value={year}"
+)
 MARKETWATCH_URLS = {
     "UST2Y": "https://www.marketwatch.com/investing/bond/tmubmusd02y",
     "UST10Y": "https://www.marketwatch.com/investing/bond/tmubmusd10y",
@@ -175,6 +179,58 @@ class USTYieldCollector:
         return result
 
     # ------------------------------------------------------------------
+    # TIPS(실질금리) 전용 재무부 TextView 파서.
+    # 실패해도 호출부에서 다음 폴백(MarketWatch)으로 넘어가므로
+    # 여기서는 빈 dict만 반환한다.
+    # ------------------------------------------------------------------
+    def _fetch_treasury_real_textview(self, target: date) -> Dict[str, float]:
+        result: Dict[str, float] = {}
+        years = [target.year - offset for offset in range(0, 3)]
+        for year in years:
+            url = TREASURY_REAL_TEXTVIEW_URL.format(year=year)
+            response = self._request(url)
+            if response is None:
+                continue
+            try:
+                tables = pd.read_html(io.StringIO(response.text))
+            except Exception as exc:  # pragma: no cover
+                self._debug("treasury_real_read_html_error", url=url, error=str(exc))
+                continue
+
+            candidate = None
+            for table in tables:
+                columns = [str(col).strip() for col in table.columns]
+                if "Date" in columns and "10 YR" in columns:
+                    candidate = table
+                    break
+            if candidate is None:
+                self._debug("treasury_real_no_table", url=url)
+                continue
+
+            candidate["Date"] = pd.to_datetime(candidate["Date"], errors="coerce")
+            candidate = candidate.dropna(subset=["Date"]).set_index("Date")
+            for offset in range(0, 8):  # 영업일/휴일 고려해 최대 7일 탐색
+                day = target - timedelta(days=offset)
+                try:
+                    row = candidate.loc[pd.Timestamp(day)]
+                except KeyError:
+                    continue
+                if isinstance(row, pd.DataFrame):
+                    row = row.iloc[0]
+                try:
+                    value = float(row["10 YR"])
+                except (TypeError, ValueError):
+                    self._debug("treasury_real_value_error", raw=row.get("10 YR"))
+                    continue
+                # TIPS는 음수가 나올 수 있으므로 -10~10 범위를 허용한다.
+                if -10 < value < 10:
+                    result["TIPS10Y"] = value
+                    self._debug("treasury_real_success", url=url, days_back=offset, value=value)
+                    return result
+                self._debug("treasury_real_range_violation", value=value)
+        return result
+
+    # ------------------------------------------------------------------
     # 3) MarketWatch HTML 파서: CSS 셀렉터 여러 개를 시도한다.
     # ------------------------------------------------------------------
     def _fetch_marketwatch(self, asset: str) -> Tuple[float | None, str | None]:
@@ -260,6 +316,7 @@ class USTYieldCollector:
         notes: Dict[str, str] = {}
 
         treasury_values = self._fetch_treasury_textview(target)
+        treasury_real_values = self._fetch_treasury_real_textview(target)
 
         for asset, series_id in self.SERIES_IDS.items():
             note_text = ""
@@ -281,6 +338,12 @@ class USTYieldCollector:
                     source = "treasury"
                     quality = "final"
                     note_text = "fallback:treasury"
+                elif asset in treasury_real_values:
+                    value = treasury_real_values[asset]
+                    url = TREASURY_REAL_TEXTVIEW_URL.format(year=target.year)
+                    source = "treasury_real"
+                    quality = "final"
+                    note_text = "fallback:treasury_real"
                 else:
                     # 3) MarketWatch HTML 파싱
                     value, url = self._fetch_marketwatch(asset)
