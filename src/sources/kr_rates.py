@@ -47,8 +47,9 @@ ECOS_ITEM_CODES = {
     "KR10Y": "0103000",
 }
 NAVER_CODES = {
-    "KR3Y": "IRR_GOVT03Y",
-    "KR10Y": "IRR_GOVT10Y",
+    # 네이버 코드가 수시로 바뀌거나 폐기되므로 후보를 순차 시도한다.
+    "KR3Y": ["IRR_GOVT03Y"],
+    "KR10Y": ["IRR_GOVT10Y", "IRR_GOVT10YR", "IRR_GOVT10Y_KR"],
 }
 
 
@@ -173,25 +174,45 @@ class KRXKorRates:
 
         soup = bs4.BeautifulSoup(response.text, "lxml")
         text = soup.get_text(" ")
+        # 1) 기존 정규식(빠른 경로): "국고채 10년 2.93"
         pattern = re.compile(rf"국고\s*채?\s*{keyword}\s*([0-9]+\.?[0-9]*)")
         match = pattern.search(text)
-        if not match:
-            return None, f"parse_failed:{KOFIA_URL},pattern_missing"
-        value = self._clean(match.group(1))
+        value = self._clean(match.group(1)) if match else float("nan")
+        # 2) 보강 경로: 표(tr) 단위로 "국고"/"국채"+만기(10년) 포함 행에서 숫자를 찾는다.
+        #    사이트 마크업이 자주 바뀌어도 텍스트 기반으로 최대한 복구하기 위한 로직이다.
         if not (0 < value < 10):
-            return None, f"range_violation:{KOFIA_URL},0-10pct"
+            for row in soup.select("tr"):
+                row_text = re.sub(r"\s+", " ", row.get_text(" ", strip=True))
+                if ("국고" not in row_text and "국채" not in row_text) or keyword not in row_text:
+                    continue
+                numbers = re.findall(r"\d+(?:\.\d+)?", row_text)
+                # 디버깅 편의: 숫자 후보들을 로그로 남기면 파싱 실패 시 원인 추적이 쉽다.
+                logger.debug("kr_rates::_fetch_kofia row match asset=%s row=%s numbers=%s", asset, row_text, numbers)
+                if not numbers:
+                    continue
+                for token in reversed(numbers):
+                    parsed = self._clean(token)
+                    if 0 < parsed < 10:
+                        value = parsed
+                        break
+                if 0 < value < 10:
+                    break
+
+        if not (0 < value < 10):
+            return None, f"parse_failed:{KOFIA_URL},pattern_missing"
         return (
             {
                 "value": float(value),
                 "prev": None,
                 "prev_date": None,
-                "source": "kofia",
-                "quality": "final",
-                "url": KOFIA_URL,
-                "note": "ok",
-            },
-            None,
-        )
+                    "source": "kofia",
+                    "quality": "final",
+                    "url": KOFIA_URL,
+                    # 디버깅 편의: 어떤 경로(정규식/행스캔)로 성공했는지 notes에 남긴다.
+                    "note": "ok:kofia",
+                },
+                None,
+            )
 
     def _fetch_ecos(self, target: date, asset: str, keyword: str) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
         api_key = os.getenv("BOK_API_KEY", "").strip() or "sample"
@@ -267,59 +288,105 @@ class KRXKorRates:
             None,
         )
 
-    def _fetch_naver(self, target: date, asset: str, keyword: str) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
-        code = NAVER_CODES.get(asset)
-        if not code:
-            return None, f"parse_failed:naver,code_missing:{asset}"
-        url = NAVER_INTEREST_URL.format(code=code)
+    def _discover_naver_code(self, asset: str) -> Optional[str]:
+        """네이버 메인에서 동적으로 금리 코드를 찾는다.
+
+        KR10Y 코드가 폐기/변경되는 경우가 있어, 정적 코드 실패 시 마지막으로 호출한다.
+        """
+        label_map = {"KR3Y": "국고채3년", "KR10Y": "국고채10년"}
+        target_label = label_map.get(asset)
+        if not target_label:
+            return None
         try:
-            response = self._session.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+            response = self._session.get("https://finance.naver.com/marketindex/", timeout=20, headers={"User-Agent": "Mozilla/5.0"})
             response.raise_for_status()
-            response.encoding = "euc-kr"
-        except Exception as exc:  # pragma: no cover
-            return None, f"parse_failed:{url},{exc}"
+        except Exception as exc:
+            logger.debug("kr_rates::_discover_naver_code request failed asset=%s err=%s", asset, exc)
+            return None
         try:
             import bs4  # type: ignore
         except Exception:
-            return None, f"parse_failed:{url},bs4_missing"
-
+            return None
         soup = bs4.BeautifulSoup(response.text, "lxml")
-        rows = soup.select("table tbody tr")
-        if not rows:
-            logger.debug("kr_rates::_fetch_naver no rows asset=%s code=%s", asset, code)
-            return None, f"parse_failed:{url},empty_table"
+        # 텍스트 비교를 위해 공백/특수문자를 제거한 정규화 문자열을 사용한다.
+        normalized_target = re.sub(r"[^가-힣0-9A-Za-z]", "", target_label)
+        for link in soup.select("a[href*='marketindexCd=']"):
+            href = link.get("href", "")
+            text = re.sub(r"[^가-힣0-9A-Za-z]", "", link.get_text(" ", strip=True))
+            if normalized_target and normalized_target in text:
+                match = re.search(r"marketindexCd=([A-Z0-9_]+)", href)
+                if match:
+                    discovered = match.group(1)
+                    logger.debug("kr_rates::_discover_naver_code asset=%s discovered=%s", asset, discovered)
+                    return discovered
+        return None
 
-        values: list[float] = []
-        dates: list[date] = []
-        for row in rows:
-            cols = [col.get_text(" ", strip=True) for col in row.select("td")]
-            if len(cols) < 2:
-                continue
-            parsed = self._clean(cols[1])
-            if not (0 < parsed < 10):
-                continue
-            values.append(float(parsed))
+    def _fetch_naver(self, target: date, asset: str, keyword: str) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
+        codes = NAVER_CODES.get(asset)
+        if not codes:
+            return None, f"parse_failed:naver,code_missing:{asset}"
+        all_codes = list(codes)
+        discovered = self._discover_naver_code(asset)
+        if discovered and discovered not in all_codes:
+            all_codes.append(discovered)
+
+        last_error: Optional[str] = None
+        for code in all_codes:
+            url = NAVER_INTEREST_URL.format(code=code)
             try:
-                dates.append(datetime.strptime(cols[0], "%Y.%m.%d").date())
+                response = self._session.get(url, timeout=20, headers={"User-Agent": "Mozilla/5.0"})
+                response.raise_for_status()
+                response.encoding = "euc-kr"
+            except Exception as exc:  # pragma: no cover
+                last_error = f"parse_failed:{url},{exc}"
+                continue
+            try:
+                import bs4  # type: ignore
             except Exception:
-                dates.append(target)
+                return None, f"parse_failed:{url},bs4_missing"
 
-        if not values:
-            return None, f"parse_failed:{url},value_missing"
-        prev = values[1] if len(values) >= 2 else None
-        prev_date = dates[1] if len(dates) >= 2 else None
-        return (
-            {
-                "value": values[0],
-                "prev": prev,
-                "prev_date": prev_date,
-                "source": "naver",
-                "quality": "secondary",
-                "url": url,
-                "note": "fallback:naver",
-            },
-            None,
-        )
+            soup = bs4.BeautifulSoup(response.text, "lxml")
+            rows = soup.select("table tbody tr")
+            if not rows:
+                logger.debug("kr_rates::_fetch_naver no rows asset=%s code=%s", asset, code)
+                last_error = f"parse_failed:{url},empty_table"
+                continue
+
+            values: list[float] = []
+            dates: list[date] = []
+            for row in rows:
+                cols = [col.get_text(" ", strip=True) for col in row.select("td")]
+                if len(cols) < 2:
+                    continue
+                parsed = self._clean(cols[1])
+                if not (0 < parsed < 10):
+                    continue
+                values.append(float(parsed))
+                try:
+                    dates.append(datetime.strptime(cols[0], "%Y.%m.%d").date())
+                except Exception:
+                    dates.append(target)
+
+            if not values:
+                last_error = f"parse_failed:{url},value_missing"
+                continue
+
+            prev = values[1] if len(values) >= 2 else None
+            prev_date = dates[1] if len(dates) >= 2 else None
+            return (
+                {
+                    "value": values[0],
+                    "prev": prev,
+                    "prev_date": prev_date,
+                    "source": "naver",
+                    "quality": "secondary",
+                    "url": url,
+                    # 디버깅 편의: 어떤 marketindexCd가 실제로 성공했는지 기록한다.
+                    "note": f"fallback:naver:{code}",
+                },
+                None,
+            )
+        return None, (last_error or f"parse_failed:naver,no_code_success:{asset}")
 
     def _load_conf(self) -> Dict[str, object]:
         try:
@@ -549,6 +616,13 @@ class KRXKorRates:
                 # 마지막 에러만 남기면 원인 추적이 어려워서 체인 형태로 함께 기록한다.
                 notes[f"{asset}:yield"] = " | ".join(failure_chain) if failure_chain else (failure_reason or f"parse_failed:{asset},unknown")
                 continue
+            # fixture로 내려온 경우, 왜 fixture까지 왔는지 직전 실패 체인을 notes에 함께 남겨
+            # latest.csv 한 줄만 봐도 디버깅 가능한 형태를 만든다.
+            if payload.get("source") == "fixture":
+                prefix = str(payload.get("note", "fallback:fixture"))
+                chain = " > ".join(failure_chain[-4:]) if failure_chain else "unknown"
+                payload["note"] = f"{prefix}|chain:{chain}"
+                logger.warning("kr_rates::fetch fixture_used asset=%s chain=%s", asset, chain)
             frame = self._build_frame(asset, target, payload)
             frames[asset] = frame
             notes[f"{asset}:yield"] = payload.get("note", "ok") or "ok"
