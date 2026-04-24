@@ -29,6 +29,7 @@ STOOQ_PRIMARY_URL = "https://stooq.com/q/d/l/?s=usdidx&i=d"
 STOOQ_SECONDARY_URL = "https://stooq.com/q/d/l/?s=dxy&i=d"
 MARKETWATCH_URL = "https://www.marketwatch.com/investing/index/dxy"
 TRADINGVIEW_URL = "https://www.tradingview.com/symbols/TVC-DXY/"
+YFINANCE_SYMBOL = "DX-Y.NYB"
 DEFAULT_HEADERS = {
     "User-Agent": (
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
@@ -208,6 +209,43 @@ class DXYCollector:
             self._debug("tradingview_parse_error", error=str(exc))
             return None
 
+
+    # ------------------------------------------------------------------
+    # 4) Yahoo Finance(yfinance) 파서: 네트워크/마크업 이슈가 있을 때 마지막 안전망.
+    # ------------------------------------------------------------------
+    def _fetch_yfinance(self) -> float | None:
+        try:
+            import yfinance as yf  # type: ignore
+        except Exception:  # pragma: no cover - 선택적 의존성
+            self._debug("yfinance_missing")
+            return None
+
+        try:
+            # 디버깅 편의: 최근 5영업일 데이터를 받아 마지막 유효 Close를 사용한다.
+            frame = yf.download(
+                YFINANCE_SYMBOL,
+                period="5d",
+                interval="1d",
+                progress=False,
+                auto_adjust=False,
+            )
+        except Exception as exc:  # pragma: no cover - 외부 네트워크 예외
+            self._debug("yfinance_request_failed", error=str(exc))
+            return None
+
+        if frame is None or frame.empty or "Close" not in frame.columns:
+            self._debug("yfinance_empty_frame")
+            return None
+
+        closes = pd.to_numeric(frame["Close"], errors="coerce").dropna()
+        if closes.empty:
+            self._debug("yfinance_close_missing")
+            return None
+
+        value = float(closes.iloc[-1])
+        self._debug("yfinance_success", value=value)
+        return value
+
     def collect(self, target: date) -> Tuple[pd.DataFrame, Dict[str, str]]:
         notes: Dict[str, str] = {}
         stooq_value, stooq_url = self._fetch_stooq(
@@ -249,6 +287,19 @@ class DXYCollector:
                 target=target,
             )
             notes["DXY:idx"] = result.note or "fallback:tradingview"
+            return result.frame, notes
+
+        yfinance_value = self._fetch_yfinance()
+        if yfinance_value is not None:
+            result = self._build_frame(
+                yfinance_value,
+                source="yfinance",
+                quality="secondary",
+                url=f"https://finance.yahoo.com/quote/{YFINANCE_SYMBOL}",
+                note=f"fallback:yfinance:{YFINANCE_SYMBOL}",
+                target=target,
+            )
+            notes["DXY:idx"] = result.note or "fallback:yfinance"
             return result.frame, notes
 
         failure_note = f"parse_failed:{STOOQ_PRIMARY_URL},all_sources_failed"
