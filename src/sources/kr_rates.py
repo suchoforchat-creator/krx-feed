@@ -13,6 +13,7 @@
 from __future__ import annotations
 
 import logging
+from io import StringIO
 import os
 import re
 from dataclasses import dataclass
@@ -346,16 +347,13 @@ class KRXKorRates:
                 return None, f"parse_failed:{url},bs4_missing"
 
             soup = bs4.BeautifulSoup(response.text, "lxml")
-            rows = soup.select("table tbody tr")
-            if not rows:
-                logger.debug("kr_rates::_fetch_naver no rows asset=%s code=%s", asset, code)
-                last_error = f"parse_failed:{url},empty_table"
-                continue
+            # 네이버가 tbody를 제거하는 경우가 있어 table tr까지 폭넓게 수집한다.
+            rows = soup.select("table tbody tr") or soup.select("table tr")
 
             values: list[float] = []
             dates: list[date] = []
             for row in rows:
-                cols = [col.get_text(" ", strip=True) for col in row.select("td")]
+                cols = [col.get_text(" ", strip=True) for col in row.select("td, th")]
                 if len(cols) < 2:
                     continue
                 parsed = self._clean(cols[1])
@@ -367,8 +365,29 @@ class KRXKorRates:
                 except Exception:
                     dates.append(target)
 
+            # HTML 구조가 또 변하면 pandas.read_html로 한 번 더 파싱을 시도한다.
             if not values:
-                last_error = f"parse_failed:{url},value_missing"
+                try:
+                    tables = pd.read_html(StringIO(response.text))
+                except Exception as exc:
+                    logger.debug("kr_rates::_fetch_naver read_html failed asset=%s code=%s err=%s", asset, code, exc)
+                    tables = []
+                for table in tables:
+                    if table.shape[1] < 2:
+                        continue
+                    for _, rec in table.iloc[:, :2].iterrows():
+                        parsed = self._clean(rec.iloc[1])
+                        if not (0 < parsed < 10):
+                            continue
+                        values.append(float(parsed))
+                        try:
+                            dates.append(pd.to_datetime(rec.iloc[0], errors="raise").date())
+                        except Exception:
+                            dates.append(target)
+
+            if not values:
+                logger.debug("kr_rates::_fetch_naver no values asset=%s code=%s", asset, code)
+                last_error = f"parse_failed:{url},empty_table"
                 continue
 
             prev = values[1] if len(values) >= 2 else None

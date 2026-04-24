@@ -102,3 +102,22 @@ def test_fetch_adds_failure_chain_when_fixture_used(monkeypatch: pytest.MonkeyPa
     notes = result.frames["KR10Y"]["notes"].tolist()
     # 디버깅용 체인 문자열이 notes 컬럼으로 전달되어야 한다.
     assert any("fallback:fixture|chain:" in value for value in notes)
+
+
+def test_fetch_naver_parses_table_without_tbody():
+    url = "https://finance.naver.com/marketindex/interestDailyQuote.naver?marketindexCd=IRR_GOVT10Y&page=1"
+    marketindex_url = "https://finance.naver.com/marketindex/"
+    html = """
+    <table>
+      <tr><th>날짜</th><th>금리</th></tr>
+      <tr><td>2026.04.24</td><td>3.61</td></tr>
+      <tr><td>2026.04.23</td><td>3.59</td></tr>
+    </table>
+    """
+    session = _FakeSession({url: _FakeResponse(html), marketindex_url: _FakeResponse("<html></html>")})
+    loader = KRXKorRates(session=session)
+    payload, error = loader._fetch_naver(date(2026, 4, 24), "KR10Y", "10년")
+    assert error is None
+    assert payload is not None
+    assert payload["value"] == 3.61
+    assert payload["prev"] == 3.59
