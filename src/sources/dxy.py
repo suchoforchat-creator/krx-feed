@@ -126,10 +126,12 @@ class DXYCollector:
                 self._debug("stooq_no_rows", url=url)
                 continue
             header, *data_rows = rows
-            if "Close" not in header:
+            # 공급자가 close/Close/CLOSE처럼 대소문자를 바꿔도 파싱되도록 보정한다.
+            lowered = [col.strip().lower() for col in header]
+            if "close" not in lowered:
                 self._debug("stooq_no_close", url=url, header=header)
                 continue
-            close_index = header.index("Close")
+            close_index = lowered.index("close")
             # 역순으로 스캔하여 가장 최근 비어 있지 않은 값을 찾는다.
             for row in reversed(data_rows):
                 if len(row) <= close_index or not row[close_index].strip():
@@ -233,11 +235,30 @@ class DXYCollector:
             self._debug("yfinance_request_failed", error=str(exc))
             return None
 
-        if frame is None or frame.empty or "Close" not in frame.columns:
+        if frame is None or frame.empty:
             self._debug("yfinance_empty_frame")
             return None
 
-        closes = pd.to_numeric(frame["Close"], errors="coerce").dropna()
+        try:
+            # yfinance는 단일 심볼이어도 MultiIndex 컬럼을 돌려줄 수 있어 둘 다 처리한다.
+            close_obj = frame["Close"] if "Close" in frame.columns else None
+            if close_obj is None and isinstance(frame.columns, pd.MultiIndex):
+                close_cols = [col for col in frame.columns if isinstance(col, tuple) and col and col[0] == "Close"]
+                if close_cols:
+                    close_obj = frame[close_cols]
+            if close_obj is None:
+                self._debug("yfinance_close_column_missing", columns=[str(col) for col in frame.columns])
+                return None
+
+            # DataFrame(멀티컬럼)면 첫 번째 컬럼을 선택하고, Series면 그대로 사용한다.
+            if isinstance(close_obj, pd.DataFrame):
+                closes = pd.to_numeric(close_obj.iloc[:, 0], errors="coerce").dropna()
+            else:
+                closes = pd.to_numeric(close_obj, errors="coerce").dropna()
+        except Exception as exc:
+            self._debug("yfinance_close_parse_failed", error=str(exc))
+            return None
+
         if closes.empty:
             self._debug("yfinance_close_missing")
             return None
@@ -248,6 +269,8 @@ class DXYCollector:
 
     def collect(self, target: date) -> Tuple[pd.DataFrame, Dict[str, str]]:
         notes: Dict[str, str] = {}
+        failure_chain: list[str] = []
+
         stooq_value, stooq_url = self._fetch_stooq(
             [STOOQ_PRIMARY_URL, STOOQ_SECONDARY_URL]
         )
@@ -263,6 +286,8 @@ class DXYCollector:
             notes["DXY:idx"] = result.note or "ok:stooq"
             return result.frame, notes
 
+        failure_chain.append("stooq_unavailable")
+
         marketwatch_value = self._fetch_marketwatch()
         if marketwatch_value is not None:
             result = self._build_frame(
@@ -275,6 +300,8 @@ class DXYCollector:
             )
             notes["DXY:idx"] = result.note or "fallback:marketwatch"
             return result.frame, notes
+
+        failure_chain.append("marketwatch_unavailable")
 
         tradingview_value = self._fetch_tradingview()
         if tradingview_value is not None:
@@ -289,6 +316,8 @@ class DXYCollector:
             notes["DXY:idx"] = result.note or "fallback:tradingview"
             return result.frame, notes
 
+        failure_chain.append("tradingview_unavailable")
+
         yfinance_value = self._fetch_yfinance()
         if yfinance_value is not None:
             result = self._build_frame(
@@ -302,6 +331,7 @@ class DXYCollector:
             notes["DXY:idx"] = result.note or "fallback:yfinance"
             return result.frame, notes
 
-        failure_note = f"parse_failed:{STOOQ_PRIMARY_URL},all_sources_failed"
+        failure_chain.append("yfinance_unavailable")
+        failure_note = f"parse_failed:{STOOQ_PRIMARY_URL},all_sources_failed:{' > '.join(failure_chain)}"
         notes["DXY:idx"] = failure_note
         return pd.DataFrame(), notes
