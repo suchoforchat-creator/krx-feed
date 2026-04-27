@@ -327,13 +327,50 @@ class KRXBreadthCollector:
         """
 
         # 초심자 팁: 공휴일/주말에는 데이터가 비어 있으니 최근 날짜부터 확인한다.
+        errors: list[str] = []
         for offset in range(10):
             probe_date = target - timedelta(days=offset)
             date_str = probe_date.strftime("%Y%m%d")
-            snapshot = stock.get_market_ohlcv_by_ticker(date_str, market=market)
-            if not snapshot.empty:
-                return snapshot, probe_date
-        raise ValueError("pykrx_empty_frame")
+            # 1) 우선 OHLCV API를 시도한다.
+            #    일부 런타임에서 pykrx 내부 파서가 컬럼 불일치로 예외를 던질 수 있어
+            #    날짜 루프 안에서 예외를 삼키고 다음 후보 날짜를 이어서 시도한다.
+            try:
+                snapshot = stock.get_market_ohlcv_by_ticker(date_str, market=market)
+                if not snapshot.empty and {"등락률", "거래량", "거래대금"}.issubset(set(snapshot.columns)):
+                    return snapshot, probe_date
+            except Exception as exc:  # pragma: no cover - 외부 API/pykrx 버전 의존
+                errors.append(f"ohlcv:{date_str}:{type(exc).__name__}")
+                logger.debug(
+                    "krx_breadth::_fetch_pykrx_snapshot OHLCV failed market=%s date=%s err=%s",
+                    market,
+                    date_str,
+                    exc,
+                )
+
+            # 2) OHLCV가 실패하면 price_change API를 대체 경로로 시도한다.
+            #    이 API는 등락률/거래량/거래대금을 제공하므로 A/D/TRIN 계산에 충분하다.
+            try:
+                baseline = _previous_business_day(probe_date)
+                fallback = stock.get_market_price_change_by_ticker(
+                    baseline.strftime("%Y%m%d"),
+                    date_str,
+                    market=market,
+                )
+                if not fallback.empty and {"등락률", "거래량", "거래대금"}.issubset(set(fallback.columns)):
+                    return fallback, probe_date
+            except Exception as exc:  # pragma: no cover - 외부 API/pykrx 버전 의존
+                errors.append(f"price_change:{date_str}:{type(exc).__name__}")
+                logger.debug(
+                    "krx_breadth::_fetch_pykrx_snapshot price_change failed market=%s date=%s err=%s",
+                    market,
+                    date_str,
+                    exc,
+                )
+                continue
+
+        # 디버깅 시스템: 마지막에 어떤 API/날짜 조합이 실패했는지 에러 체인으로 남긴다.
+        chain = " > ".join(errors[-6:]) if errors else "no_response"
+        raise ValueError(f"pykrx_empty_frame|chain:{chain}")
 
     def _aggregate_snapshot(
         self,
