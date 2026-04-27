@@ -13,7 +13,11 @@ permissions:
 concurrency:
   group: data-pipeline
   cancel-in-progress: false
-
+  
+env:
+  KRX_ID: ${{ secrets.KRX_ID }}
+  KRX_PW: ${{ secrets.KRX_PW }}
+  
 jobs:
   collect_0630:
     #if: github.event.schedule == '30 21 * * 1-5'
