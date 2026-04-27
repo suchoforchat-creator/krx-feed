@@ -71,37 +71,23 @@ def test_discover_naver_code_from_marketindex_page():
     assert loader._discover_naver_code("KR10Y") == discovered
 
 
-def test_fetch_adds_failure_chain_when_fixture_used(monkeypatch: pytest.MonkeyPatch):
+def test_fetch_leaves_value_empty_when_all_sources_failed(monkeypatch: pytest.MonkeyPatch):
     loader = KRXKorRates(session=_FakeSession({}))
 
-    # 앞단 소스들은 모두 실패했다고 가정하고, 마지막 fixture만 성공하도록 목킹한다.
+    # 모든 소스가 실패한 상황을 가정한다.
     monkeypatch.setattr(loader, "_fetch_krx", lambda *args, **kwargs: (None, "parse_failed:krx,403"))
     monkeypatch.setattr(loader, "_fetch_kofia", lambda *args, **kwargs: (None, "parse_failed:kofia,empty"))
     monkeypatch.setattr(loader, "_fetch_ecos", lambda *args, **kwargs: (None, "parse_failed:ecos,empty"))
     monkeypatch.setattr(loader, "_fetch_kis", lambda *args, **kwargs: (None, "parse_failed:kis,conf_missing"))
     monkeypatch.setattr(loader, "_fetch_naver", lambda *args, **kwargs: (None, "parse_failed:naver,empty_table"))
     monkeypatch.setattr(loader, "_fetch_investing", lambda *args, **kwargs: (None, "parse_failed:investing,403"))
-
-    def _fixture(*args, **kwargs):
-        return (
-            {
-                "value": 3.6,
-                "prev": 3.5,
-                "prev_date": date(2026, 4, 23),
-                "source": "fixture",
-                "quality": "secondary",
-                "url": "https://example.com/fixture",
-                "note": "fallback:fixture",
-            },
-            None,
-        )
-
-    monkeypatch.setattr(loader, "_fetch_fixture", _fixture)
     result = loader.fetch(date(2026, 4, 24))
-    assert "KR10Y" in result.frames
-    notes = result.frames["KR10Y"]["notes"].tolist()
-    # 디버깅용 체인 문자열이 notes 컬럼으로 전달되어야 한다.
-    assert any("fallback:fixture|chain:" in value for value in notes)
+    # 값은 비어 있어야 하므로 프레임이 만들어지지 않는다.
+    assert "KR10Y" not in result.frames
+    note = result.notes["KR10Y:yield"]
+    # 디버깅용 실패 체인 문자열은 notes 딕셔너리에 남아야 한다.
+    assert "parse_failed:krx,403" in note
+    assert "parse_failed:investing,403" in note
 
 
 def test_fetch_naver_parses_table_without_tbody():

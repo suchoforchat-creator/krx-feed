@@ -3,9 +3,9 @@
 요구 사항 요약
 --------------
 * KRX 장외 채권수익률 표를 1순위로 사용하고, 실패 시 KOFIA → 한국은행 ECOS
-  → Investing.com 순으로 폴백한다.
-* 합성 데이터는 금지. 어떤 소스에서도 값을 구하지 못하면 값은 비워 두고
-  ``notes="parse_failed:<url>,<reason>"``을 기록한다.
+  → KIS → Naver → Investing.com 순으로 폴백한다.
+* 합성/fixture 데이터는 금지. 어떤 소스에서도 값을 구하지 못하면 값을 비워 두고
+  ``notes="parse_failed:<url>,<reason>"`` 실패 체인을 기록한다.
 * 0 < 수익률 < 10 범위를 벗어나면 ``range_violation``으로 처리한다.
 * 성공 시에도 ``notes="ok"`` 등 명시적인 상태 값을 남겨 디버깅을 돕는다.
 """
@@ -62,8 +62,8 @@ ECOS_ITEM_KEYWORDS = {
 }
 NAVER_CODES = {
     # 네이버 코드가 수시로 바뀌거나 폐기되므로 후보를 순차 시도한다.
-    "KR3Y": ["IRR_GOVT03Y"],
-    "KR10Y": ["IRR_GOVT10Y", "IRR_GOVT10YR", "IRR_GOVT10Y_KR"],
+    "KR3Y": ["IRR_GOVT03Y", "IRR_GOVT03YR", "IRR_GOVT03Y_KR"],
+    "KR10Y": ["IRR_GOVT10Y", "IRR_GOVT10YR", "IRR_GOVT10Y_KR", "IRR_GOVT10YEAR"],
 }
 
 
@@ -501,6 +501,18 @@ class KRXKorRates:
                             dates.append(pd.to_datetime(rec.iloc[0], errors="raise").date())
                         except Exception:
                             dates.append(target)
+            # 마지막 보강: HTML 구조가 크게 바뀌는 경우를 위해 전체 본문에서 날짜/금리 쌍을 파싱한다.
+            if not values:
+                raw_pairs = re.findall(r"(20\d{2}\.\d{2}\.\d{2})[^0-9]{0,30}(\d+(?:\.\d+)?)", response.text)
+                for date_text, value_text in raw_pairs:
+                    parsed = self._clean(value_text)
+                    if not (0 < parsed < 10):
+                        continue
+                    values.append(float(parsed))
+                    try:
+                        dates.append(datetime.strptime(date_text, "%Y.%m.%d").date())
+                    except Exception:
+                        dates.append(target)
 
             if not values:
                 logger.debug("kr_rates::_fetch_naver no values asset=%s code=%s", asset, code)
@@ -538,66 +550,6 @@ class KRXKorRates:
         except Exception as exc:
             logger.debug("kr_rates::_load_conf failed: %s", exc)
             return {}
-
-    def _fetch_fixture(self, target: date, asset: str, keyword: str) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
-        """네트워크 차단 환경용 최종 폴백.
-
-        README 요구사항(실소스 모두 실패 시 fixtures.kor_yields 사용)에 맞춰,
-        conf.yml의 `fixtures.kor_yields`에서 최근 스냅샷 값을 읽는다.
-        """
-        conf = self._load_conf()
-        fixtures = (conf.get("fixtures", {}) if isinstance(conf, dict) else {})  # type: ignore[union-attr]
-        rows = fixtures.get("kor_yields", []) if isinstance(fixtures, dict) else []
-        if not isinstance(rows, list) or not rows:
-            return None, "parse_failed:fixture,empty"
-
-        # 디버깅 편의: 날짜 파싱 가능한 행만 남기고 최신 2개를 뽑아 현재/이전값을 구성한다.
-        parsed_rows: list[tuple[date, float, float]] = []
-        for row in rows:
-            if not isinstance(row, dict):
-                continue
-            try:
-                row_date = pd.to_datetime(row.get("date"), errors="raise").date()
-                kr3y = float(row.get("kr3y"))
-                kr10y = float(row.get("kr10y"))
-            except Exception:
-                continue
-            if not (0 < kr3y < 10 and 0 < kr10y < 10):
-                continue
-            parsed_rows.append((row_date, kr3y, kr10y))
-        if not parsed_rows:
-            return None, "parse_failed:fixture,no_valid_rows"
-
-        parsed_rows.sort(key=lambda item: item[0])
-        latest_date, latest_3y, latest_10y = parsed_rows[-1]
-        prev_tuple = parsed_rows[-2] if len(parsed_rows) >= 2 else None
-
-        value = latest_3y if asset == "KR3Y" else latest_10y
-        prev = None
-        prev_date = None
-        if prev_tuple is not None:
-            prev_date = prev_tuple[0]
-            prev = prev_tuple[1] if asset == "KR3Y" else prev_tuple[2]
-
-        logger.debug(
-            "kr_rates::_fetch_fixture asset=%s latest_date=%s target=%s value=%s",
-            asset,
-            latest_date,
-            target,
-            value,
-        )
-        return (
-            {
-                "value": float(value),
-                "prev": float(prev) if prev is not None else None,
-                "prev_date": prev_date,
-                "source": "fixture",
-                "quality": "secondary",
-                "url": str(fixtures.get("kor_yields_url", "https://www.kofiabond.or.kr")),
-                "note": "fallback:fixture",
-            },
-            None,
-        )
 
     def _fetch_kis(self, target: date, asset: str, keyword: str) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
         # KIS API 키가 있는 런타임에서는 이 경로가 KR10Y 복구에 가장 안정적이다.
@@ -750,7 +702,6 @@ class KRXKorRates:
                 self._fetch_kis,
                 self._fetch_naver,
                 self._fetch_investing,
-                self._fetch_fixture,
             ):
                 result, error = fetcher(target, asset, keyword)
                 if result is not None:
@@ -763,14 +714,8 @@ class KRXKorRates:
             if payload is None:
                 # 마지막 에러만 남기면 원인 추적이 어려워서 체인 형태로 함께 기록한다.
                 notes[f"{asset}:yield"] = " | ".join(failure_chain) if failure_chain else (failure_reason or f"parse_failed:{asset},unknown")
+                logger.warning("kr_rates::fetch all_sources_failed asset=%s chain=%s", asset, notes[f"{asset}:yield"])
                 continue
-            # fixture로 내려온 경우, 왜 fixture까지 왔는지 직전 실패 체인을 notes에 함께 남겨
-            # latest.csv 한 줄만 봐도 디버깅 가능한 형태를 만든다.
-            if payload.get("source") == "fixture":
-                prefix = str(payload.get("note", "fallback:fixture"))
-                chain = " > ".join(failure_chain[-4:]) if failure_chain else "unknown"
-                payload["note"] = f"{prefix}|chain:{chain}"
-                logger.warning("kr_rates::fetch fixture_used asset=%s chain=%s", asset, chain)
             frame = self._build_frame(asset, target, payload)
             frames[asset] = frame
             notes[f"{asset}:yield"] = payload.get("note", "ok") or "ok"
