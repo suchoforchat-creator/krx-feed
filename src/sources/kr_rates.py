@@ -47,6 +47,12 @@ ECOS_ITEM_CODES = {
     "KR3Y": "0101000",
     "KR10Y": "0103000",
 }
+ECOS_ITEM_KEYWORDS = {
+    # ECOS ITEM_CODE가 개편되면 고정 코드(0103000)로는 empty가 발생할 수 있다.
+    # 아래 키워드로 ITEM_NAME을 탐색해 현재 유효한 코드를 자동 복구한다.
+    "KR3Y": ["국고채", "3년"],
+    "KR10Y": ["국고채", "10년"],
+}
 NAVER_CODES = {
     # 네이버 코드가 수시로 바뀌거나 폐기되므로 후보를 순차 시도한다.
     "KR3Y": ["IRR_GOVT03Y"],
@@ -75,6 +81,9 @@ class KRXKorRates:
         self._client = client or KrxClient()
         self._session = session or requests.Session()
         self._kis_cache: pd.DataFrame | None = None
+        self._kis_client: KISClient | None = None
+        # ECOS item-code 자동 탐색 결과를 캐시하면 같은 실행에서 중복 네트워크를 줄일 수 있다.
+        self._ecos_item_cache: dict[str, str] = {}
 
     @staticmethod
     def _clean(value: object) -> float:
@@ -222,72 +231,158 @@ class KRXKorRates:
         if not item_code:
             return None, f"parse_failed:{ECOS_URL},item_code_missing"
 
+        # 디버깅 편의: 하드코드 item_code가 만료되는 경우를 대비해 자동 탐색을 시도한다.
+        # 1) 기본 코드로 먼저 조회
+        # 2) empty면 StatisticItemList로 현재 코드를 탐색해 재시도
+        candidate_item_codes = [item_code]
+        discovered = self._discover_ecos_item_code(api_key, asset)
+        if discovered and discovered not in candidate_item_codes:
+            candidate_item_codes.append(discovered)
+
         end = target.strftime("%Y%m%d")
         start = (target - timedelta(days=40)).strftime("%Y%m%d")
-        url = "/".join(
-            [
+        for candidate_code in candidate_item_codes:
+            url = "/".join(
+                [
+                    ECOS_STAT_URL,
+                    api_key,
+                    "json",
+                    "kr",
+                    "1",
+                    "400",
+                    "060Y001",
+                    "DD",
+                    start,
+                    end,
+                    candidate_code,
+                    "",
+                    "",
+                ]
+            )
+            try:
+                response = self._session.get(url, timeout=20)
+                response.raise_for_status()
+                payload = response.json()
+            except Exception as exc:  # pragma: no cover
+                return None, f"parse_failed:{ECOS_URL},{exc}"
+
+            # ECOS는 HTTP 200이어도 RESULT 코드로 에러를 돌려줄 수 있어 별도 점검한다.
+            result = payload.get("RESULT", {}) if isinstance(payload, dict) else {}
+            if isinstance(result, dict) and result.get("CODE") not in (None, "INFO-000"):
+                logger.debug("kr_rates::_fetch_ecos result_error asset=%s code=%s msg=%s", asset, result.get("CODE"), result.get("MESSAGE"))
+                continue
+
+            rows = payload.get("StatisticSearch", {}).get("row", [])
+            if not rows:
+                logger.debug(
+                    "kr_rates::_fetch_ecos empty rows asset=%s item=%s payload_keys=%s",
+                    asset,
+                    candidate_code,
+                    list(payload.keys()) if isinstance(payload, dict) else [],
+                )
+                continue
+
+            frame = pd.DataFrame(rows)
+            if "TIME" not in frame.columns or "DATA_VALUE" not in frame.columns:
+                logger.debug("kr_rates::_fetch_ecos missing fields asset=%s columns=%s", asset, list(frame.columns))
+                continue
+
+            frame["TIME"] = pd.to_datetime(frame["TIME"], format="%Y%m%d", errors="coerce")
+            frame["DATA_VALUE"] = pd.to_numeric(frame["DATA_VALUE"], errors="coerce")
+            frame = frame.dropna(subset=["TIME", "DATA_VALUE"]).sort_values("TIME")
+            if frame.empty:
+                continue
+
+            valid = frame[(frame["DATA_VALUE"] > 0) & (frame["DATA_VALUE"] < 10)]
+            if valid.empty:
+                logger.debug(
+                    "kr_rates::_fetch_ecos range_violation asset=%s sample=%s",
+                    asset,
+                    frame[["TIME", "DATA_VALUE"]].tail(5).to_dict("records"),
+                )
+                continue
+
+            current = float(valid.iloc[-1]["DATA_VALUE"])
+            prev = float(valid.iloc[-2]["DATA_VALUE"]) if len(valid) >= 2 else None
+            prev_date = valid.iloc[-2]["TIME"].date() if len(valid) >= 2 else None
+            return (
+                {
+                    "value": current,
+                    "prev": prev,
+                    "prev_date": prev_date,
+                    "source": "BOK_ECOS",
+                    "quality": "secondary",
+                    "url": ECOS_URL,
+                    "note": f"fallback:ecos:{candidate_code}",
+                },
+                None,
+            )
+
+        return None, f"parse_failed:{ECOS_URL},empty"
+
+    def _discover_ecos_item_code(self, api_key: str, asset: str) -> Optional[str]:
+        """ECOS StatisticItemList에서 현재 유효한 item code를 탐색한다.
+
+        사용자 로그에서 KR10Y가 `parse_failed:.../empty`로 반복되므로,
+        통계 항목 코드 변경 가능성을 자동으로 점검하기 위한 보강 로직이다.
+        """
+        cached = self._ecos_item_cache.get(asset)
+        if cached:
+            return cached
+
+        keywords = ECOS_ITEM_KEYWORDS.get(asset, [])
+        if not keywords:
+            return None
+
+        urls = [
+            # ECOS 공식 문서 포맷(권장)
+            "/".join([
+                "https://ecos.bok.or.kr/api/StatisticItemList",
+                api_key,
+                "json",
+                "kr",
+                "1",
+                "1000",
+                "060Y001",
+            ]),
+            # 일부 런타임에서 StatisticSearch 베이스를 재사용하는 케이스를 대비한 보조 포맷
+            "/".join([
                 ECOS_STAT_URL,
                 api_key,
                 "json",
                 "kr",
                 "1",
-                "400",
+                "1000",
+                "StatisticItemList",
                 "060Y001",
-                "DD",
-                start,
-                end,
-                item_code,
-                "",
-                "",
-            ]
-        )
-        try:
-            response = self._session.get(url, timeout=20)
-            response.raise_for_status()
-            payload = response.json()
-        except Exception as exc:  # pragma: no cover
-            return None, f"parse_failed:{ECOS_URL},{exc}"
+            ]),
+        ]
 
-        rows = payload.get("StatisticSearch", {}).get("row", [])
-        if not rows:
-            logger.debug("kr_rates::_fetch_ecos empty rows asset=%s payload_keys=%s", asset, list(payload.keys()))
-            return None, f"parse_failed:{ECOS_URL},empty"
+        for url in urls:
+            try:
+                resp = self._session.get(url, timeout=20)
+                resp.raise_for_status()
+                payload = resp.json()
+            except Exception as exc:
+                logger.debug("kr_rates::_discover_ecos_item_code request failed asset=%s url=%s err=%s", asset, url, exc)
+                continue
 
-        frame = pd.DataFrame(rows)
-        if "TIME" not in frame.columns or "DATA_VALUE" not in frame.columns:
-            logger.debug("kr_rates::_fetch_ecos missing fields asset=%s columns=%s", asset, list(frame.columns))
-            return None, f"parse_failed:{ECOS_URL},field_missing"
-
-        frame["TIME"] = pd.to_datetime(frame["TIME"], format="%Y%m%d", errors="coerce")
-        frame["DATA_VALUE"] = pd.to_numeric(frame["DATA_VALUE"], errors="coerce")
-        frame = frame.dropna(subset=["TIME", "DATA_VALUE"]).sort_values("TIME")
-        if frame.empty:
-            return None, f"parse_failed:{ECOS_URL},empty_after_clean"
-
-        valid = frame[(frame["DATA_VALUE"] > 0) & (frame["DATA_VALUE"] < 10)]
-        if valid.empty:
-            logger.debug(
-                "kr_rates::_fetch_ecos range_violation asset=%s sample=%s",
-                asset,
-                frame[["TIME", "DATA_VALUE"]].tail(5).to_dict("records"),
-            )
-            return None, f"range_violation:{ECOS_URL},0-10pct"
-
-        current = float(valid.iloc[-1]["DATA_VALUE"])
-        prev = float(valid.iloc[-2]["DATA_VALUE"]) if len(valid) >= 2 else None
-        prev_date = valid.iloc[-2]["TIME"].date() if len(valid) >= 2 else None
-        return (
-            {
-                "value": current,
-                "prev": prev,
-                "prev_date": prev_date,
-                "source": "BOK_ECOS",
-                "quality": "secondary",
-                "url": ECOS_URL,
-                "note": "fallback:ecos",
-            },
-            None,
-        )
+            rows = payload.get("StatisticItemList", {}).get("row", []) if isinstance(payload, dict) else []
+            if not rows:
+                continue
+            for row in rows:
+                if not isinstance(row, dict):
+                    continue
+                name = str(row.get("ITEM_NAME", ""))
+                code = str(row.get("ITEM_CODE", "")).strip()
+                if not code:
+                    continue
+                normalized = re.sub(r"\s+", "", name)
+                if all(token in normalized for token in keywords):
+                    self._ecos_item_cache[asset] = code
+                    logger.debug("kr_rates::_discover_ecos_item_code asset=%s code=%s name=%s", asset, code, name)
+                    return code
+        return None
 
     def _discover_naver_code(self, asset: str) -> Optional[str]:
         """네이버 메인에서 동적으로 금리 코드를 찾는다.
@@ -489,13 +584,25 @@ class KRXKorRates:
             if not conf:
                 return None, "parse_failed:KIS,conf_missing"
             try:
-                client = KISClient(conf)
-                self._kis_cache = client.get_kor_yields()
+                self._kis_client = KISClient(conf)
+                self._kis_cache = self._kis_client.get_kor_yields()
             except Exception as exc:
                 return None, f"parse_failed:KIS,{exc}"
         frame = self._kis_cache
         if frame is None or frame.empty:
-            return None, "parse_failed:KIS,empty"
+            # 디버깅 편의: KISClient 내부 실패 메타(reason/url)를 에러 문자열에 포함한다.
+            # 예) parse_failed:KIS,empty|KR10Y:ecos_empty@https://ecos...
+            failure_meta = getattr(self._kis_client, "yield_failure_meta", {})
+            detail_parts: list[str] = []
+            if isinstance(failure_meta, dict):
+                for alias, info in failure_meta.items():
+                    if not isinstance(info, dict):
+                        continue
+                    reason = str(info.get("reason", "unknown"))
+                    url = str(info.get("url", ""))
+                    detail_parts.append(f"{alias}:{reason}@{url}" if url else f"{alias}:{reason}")
+            detail = "|".join(detail_parts)
+            return None, (f"parse_failed:KIS,empty|{detail}" if detail else "parse_failed:KIS,empty")
         col = asset.lower()
         if col not in frame.columns:
             return None, f"parse_failed:KIS,column_missing:{col}"
