@@ -60,6 +60,12 @@ ECOS_ITEM_KEYWORDS = {
     "KR3Y": ["국고채", "3년"],
     "KR10Y": ["국고채", "10년"],
 }
+ECOS_ITEM_KEYWORDS = {
+    # ECOS ITEM_CODE가 개편되면 고정 코드(0103000)로는 empty가 발생할 수 있다.
+    # 아래 키워드로 ITEM_NAME을 탐색해 현재 유효한 코드를 자동 복구한다.
+    "KR3Y": ["국고채", "3년"],
+    "KR10Y": ["국고채", "10년"],
+}
 NAVER_CODES = {
     # 네이버 코드가 수시로 바뀌거나 폐기되므로 후보를 순차 시도한다.
     "KR3Y": ["IRR_GOVT03Y"],
@@ -245,6 +251,14 @@ class KRXKorRates:
         # 1) 기본 코드로 먼저 조회
         # 2) empty면 StatisticItemList로 현재 코드를 탐색해 재시도
         candidate_item_codes = list(dict.fromkeys(item_codes))
+
+        # 디버깅 편의: 하드코드 item_code가 만료되는 경우를 대비해 자동 탐색을 시도한다.
+        # 1) 기본 코드로 먼저 조회
+        # 2) empty면 StatisticItemList로 현재 코드를 탐색해 재시도
+        candidate_item_codes = [item_code]
+        discovered = self._discover_ecos_item_code(api_key, asset)
+        if discovered and discovered not in candidate_item_codes:
+            candidate_item_codes.append(discovered)
 
         end = target.strftime("%Y%m%d")
         start = (target - timedelta(days=40)).strftime("%Y%m%d")
