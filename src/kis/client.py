@@ -18,6 +18,12 @@ from ..utils import KST, kst_now
 
 logger = logging.getLogger(__name__)
 
+ECOS_STAT_FALLBACKS: Dict[str, list[str]] = {
+    # 운영 환경마다 060Y001/817Y002 중 한쪽만 값이 존재하는 케이스를 대비.
+    "KR3Y": ["060Y001", "817Y002"],
+    "KR10Y": ["060Y001", "817Y002"],
+}
+
 
 def _to_kst_index(index: pd.Index) -> pd.DatetimeIndex:
     idx = pd.DatetimeIndex(index)
@@ -414,58 +420,84 @@ class KISClient:
                 failures[alias] = "ecos_statistic_missing"
                 continue
             cycle = meta.get("cycle", "DD")
-            items = list(meta.get("items", []))
-            while len(items) < 3:
-                items.append("")
+            # ITEM_CODE가 7자리/9자리로 혼용되는 케이스가 있어 변형 후보를 모두 시도한다.
+            raw_items = [str(x).strip() for x in list(meta.get("items", [])) if str(x).strip()]
+            item_candidates: list[str] = []
+            for item in raw_items:
+                item_candidates.append(item)
+                if len(item) == 7:
+                    item_candidates.append(f"{item}00")
+                if len(item) == 9 and item.endswith("00"):
+                    item_candidates.append(item[:-2])
+            item_candidates = list(dict.fromkeys(item_candidates)) or [""]
+
+            stat_candidates = [str(statistic)] + [s for s in ECOS_STAT_FALLBACKS.get(alias, []) if s != str(statistic)]
+            stat_candidates = list(dict.fromkeys(stat_candidates))
             start_row = int(meta.get("start_row", 1))
             end_row = int(meta.get("end_row", max(200, periods * 3)))
-            url = "/".join(
-                [
-                    base_url.rstrip("/"),
-                    api_key,
-                    "json",
-                    "kr",
-                    str(start_row),
-                    str(end_row),
-                    statistic,
-                    cycle,
-                    start_str,
-                    end_str,
-                    *(item or "" for item in items[:3]),
-                ]
-            )
-            try:
-                resp = self.session.get(url, timeout=timeout)
-                resp.raise_for_status()
-                payload = resp.json()
-            except Exception as exc:
-                logger.warning("ECOS %s 요청 실패: %s", alias, exc)
-                failures[alias] = "ecos_request_failed"
-                continue
+            fetched = False
+            for stat_code in stat_candidates:
+                for item_code in item_candidates:
+                    items = [item_code, "", ""]
+                    url = "/".join(
+                        [
+                            base_url.rstrip("/"),
+                            api_key,
+                            "json",
+                            "kr",
+                            str(start_row),
+                            str(end_row),
+                            stat_code,
+                            cycle,
+                            start_str,
+                            end_str,
+                            *(item or "" for item in items[:3]),
+                        ]
+                    )
+                    try:
+                        resp = self.session.get(url, timeout=timeout)
+                        resp.raise_for_status()
+                        payload = resp.json()
+                    except Exception as exc:
+                        logger.warning("ECOS %s 요청 실패(stat=%s item=%s): %s", alias, stat_code, item_code, exc)
+                        failures[alias] = "ecos_request_failed"
+                        continue
 
-            rows = payload.get("StatisticSearch", {}).get("row", [])
-            if not rows:
+                    result = payload.get("RESULT", {}) if isinstance(payload, dict) else {}
+                    if isinstance(result, dict) and result.get("CODE") not in (None, "INFO-000"):
+                        failures[alias] = f"ecos_result_{result.get('CODE')}"
+                        continue
+
+                    rows = payload.get("StatisticSearch", {}).get("row", [])
+                    if not rows:
+                        failures[alias] = "ecos_empty"
+                        continue
+
+                    frame = pd.DataFrame(rows)
+                    if "TIME" not in frame or "DATA_VALUE" not in frame:
+                        failures[alias] = "ecos_field_missing"
+                        continue
+
+                    frame["ts_kst"] = pd.to_datetime(frame["TIME"], format="%Y%m%d", errors="coerce")
+                    frame["ts_kst"] = frame["ts_kst"].dt.tz_localize(KST, nonexistent="shift_forward", ambiguous="NaT")
+                    frame["value"] = pd.to_numeric(frame["DATA_VALUE"], errors="coerce")
+                    frame = frame.dropna(subset=["ts_kst", "value"]).sort_values("ts_kst").tail(periods)
+                    if frame.empty:
+                        failures[alias] = "ecos_empty_after_clean"
+                        continue
+
+                    frame = frame[["ts_kst", "value"]]
+                    frame["source"] = "BOK_ECOS"
+                    frame["quality"] = "secondary"
+                    frame["url"] = meta.get("url", base_url)
+                    results[alias] = frame.reset_index(drop=True)
+                    failures.pop(alias, None)
+                    fetched = True
+                    break
+                if fetched:
+                    break
+            if not fetched and alias not in failures:
                 failures[alias] = "ecos_empty"
-                continue
-
-            frame = pd.DataFrame(rows)
-            if "TIME" not in frame or "DATA_VALUE" not in frame:
-                failures[alias] = "ecos_field_missing"
-                continue
-
-            frame["ts_kst"] = pd.to_datetime(frame["TIME"], format="%Y%m%d", errors="coerce")
-            frame["ts_kst"] = frame["ts_kst"].dt.tz_localize(KST, nonexistent="shift_forward", ambiguous="NaT")
-            frame["value"] = pd.to_numeric(frame["DATA_VALUE"], errors="coerce")
-            frame = frame.dropna(subset=["ts_kst", "value"]).sort_values("ts_kst").tail(periods)
-            if frame.empty:
-                failures[alias] = "ecos_empty"
-                continue
-
-            frame = frame[["ts_kst", "value"]]
-            frame["source"] = "BOK_ECOS"
-            frame["quality"] = "secondary"
-            frame["url"] = meta.get("url", base_url)
-            results[alias] = frame.reset_index(drop=True)
 
         return results, failures
 

@@ -43,9 +43,22 @@ INVESTING_URLS = {
 }
 
 YIELD_COLUMNS = ["LST_ORD_BAS_YD", "LST_ORD_YD", "수익률", "YLD", "APPL_YD"]
+ECOS_STAT_CODES = {
+    # 060Y001: 시장금리(일별) 구버전/대표 코드
+    # 817Y002: 일부 런타임에서 동일 계열 금리 데이터가 이 코드에만 존재하는 케이스 대응
+    "KR3Y": ["060Y001", "817Y002"],
+    "KR10Y": ["060Y001", "817Y002"],
+}
 ECOS_ITEM_CODES = {
-    "KR3Y": "0101000",
-    "KR10Y": "0103000",
+    # 현장에서 7자리(0103000) / 9자리(010300000) 혼용 이슈가 발생해 둘 다 시도한다.
+    "KR3Y": ["0101000", "010100000"],
+    "KR10Y": ["0103000", "010300000"],
+}
+ECOS_ITEM_KEYWORDS = {
+    # ECOS ITEM_CODE가 개편되면 고정 코드(0103000)로는 empty가 발생할 수 있다.
+    # 아래 키워드로 ITEM_NAME을 탐색해 현재 유효한 코드를 자동 복구한다.
+    "KR3Y": ["국고채", "3년"],
+    "KR10Y": ["국고채", "10년"],
 }
 ECOS_ITEM_KEYWORDS = {
     # ECOS ITEM_CODE가 개편되면 고정 코드(0103000)로는 empty가 발생할 수 있다.
@@ -227,9 +240,17 @@ class KRXKorRates:
     def _fetch_ecos(self, target: date, asset: str, keyword: str) -> Tuple[Optional[Dict[str, object]], Optional[str]]:
         api_key = os.getenv("BOK_API_KEY", "").strip() or "sample"
 
-        item_code = ECOS_ITEM_CODES.get(asset)
-        if not item_code:
+        item_codes = ECOS_ITEM_CODES.get(asset)
+        if not item_codes:
             return None, f"parse_failed:{ECOS_URL},item_code_missing"
+        stat_codes = ECOS_STAT_CODES.get(asset, ["060Y001"])
+        if not stat_codes:
+            stat_codes = ["060Y001"]
+
+        # 디버깅 편의: 하드코드 item_code가 만료되는 경우를 대비해 자동 탐색을 시도한다.
+        # 1) 기본 코드로 먼저 조회
+        # 2) empty면 StatisticItemList로 현재 코드를 탐색해 재시도
+        candidate_item_codes = list(dict.fromkeys(item_codes))
 
         # 디버깅 편의: 하드코드 item_code가 만료되는 경우를 대비해 자동 탐색을 시도한다.
         # 1) 기본 코드로 먼저 조회
@@ -241,92 +262,107 @@ class KRXKorRates:
 
         end = target.strftime("%Y%m%d")
         start = (target - timedelta(days=40)).strftime("%Y%m%d")
-        for candidate_code in candidate_item_codes:
-            url = "/".join(
-                [
-                    ECOS_STAT_URL,
-                    api_key,
-                    "json",
-                    "kr",
-                    "1",
-                    "400",
-                    "060Y001",
-                    "DD",
-                    start,
-                    end,
-                    candidate_code,
-                    "",
-                    "",
-                ]
-            )
-            try:
-                response = self._session.get(url, timeout=20)
-                response.raise_for_status()
-                payload = response.json()
-            except Exception as exc:  # pragma: no cover
-                return None, f"parse_failed:{ECOS_URL},{exc}"
+        for stat_code in stat_codes:
+            discovered = self._discover_ecos_item_code(api_key, asset, stat_code)
+            item_code_candidates = list(candidate_item_codes)
+            if discovered and discovered not in item_code_candidates:
+                item_code_candidates.append(discovered)
 
-            # ECOS는 HTTP 200이어도 RESULT 코드로 에러를 돌려줄 수 있어 별도 점검한다.
-            result = payload.get("RESULT", {}) if isinstance(payload, dict) else {}
-            if isinstance(result, dict) and result.get("CODE") not in (None, "INFO-000"):
-                logger.debug("kr_rates::_fetch_ecos result_error asset=%s code=%s msg=%s", asset, result.get("CODE"), result.get("MESSAGE"))
-                continue
-
-            rows = payload.get("StatisticSearch", {}).get("row", [])
-            if not rows:
-                logger.debug(
-                    "kr_rates::_fetch_ecos empty rows asset=%s item=%s payload_keys=%s",
-                    asset,
-                    candidate_code,
-                    list(payload.keys()) if isinstance(payload, dict) else [],
+            for candidate_code in item_code_candidates:
+                url = "/".join(
+                    [
+                        ECOS_STAT_URL,
+                        api_key,
+                        "json",
+                        "kr",
+                        "1",
+                        "400",
+                        stat_code,
+                        "DD",
+                        start,
+                        end,
+                        candidate_code,
+                        "",
+                        "",
+                    ]
                 )
-                continue
+                try:
+                    response = self._session.get(url, timeout=20)
+                    response.raise_for_status()
+                    payload = response.json()
+                except Exception as exc:  # pragma: no cover
+                    return None, f"parse_failed:{ECOS_URL},{exc}"
 
-            frame = pd.DataFrame(rows)
-            if "TIME" not in frame.columns or "DATA_VALUE" not in frame.columns:
-                logger.debug("kr_rates::_fetch_ecos missing fields asset=%s columns=%s", asset, list(frame.columns))
-                continue
+                # ECOS는 HTTP 200이어도 RESULT 코드로 에러를 돌려줄 수 있어 별도 점검한다.
+                result = payload.get("RESULT", {}) if isinstance(payload, dict) else {}
+                if isinstance(result, dict) and result.get("CODE") not in (None, "INFO-000"):
+                    logger.debug(
+                        "kr_rates::_fetch_ecos result_error asset=%s stat=%s item=%s code=%s msg=%s",
+                        asset,
+                        stat_code,
+                        candidate_code,
+                        result.get("CODE"),
+                        result.get("MESSAGE"),
+                    )
+                    continue
 
-            frame["TIME"] = pd.to_datetime(frame["TIME"], format="%Y%m%d", errors="coerce")
-            frame["DATA_VALUE"] = pd.to_numeric(frame["DATA_VALUE"], errors="coerce")
-            frame = frame.dropna(subset=["TIME", "DATA_VALUE"]).sort_values("TIME")
-            if frame.empty:
-                continue
+                rows = payload.get("StatisticSearch", {}).get("row", [])
+                if not rows:
+                    logger.debug(
+                        "kr_rates::_fetch_ecos empty rows asset=%s stat=%s item=%s payload_keys=%s",
+                        asset,
+                        stat_code,
+                        candidate_code,
+                        list(payload.keys()) if isinstance(payload, dict) else [],
+                    )
+                    continue
 
-            valid = frame[(frame["DATA_VALUE"] > 0) & (frame["DATA_VALUE"] < 10)]
-            if valid.empty:
-                logger.debug(
-                    "kr_rates::_fetch_ecos range_violation asset=%s sample=%s",
-                    asset,
-                    frame[["TIME", "DATA_VALUE"]].tail(5).to_dict("records"),
+                frame = pd.DataFrame(rows)
+                if "TIME" not in frame.columns or "DATA_VALUE" not in frame.columns:
+                    logger.debug("kr_rates::_fetch_ecos missing fields asset=%s columns=%s", asset, list(frame.columns))
+                    continue
+
+                frame["TIME"] = pd.to_datetime(frame["TIME"], format="%Y%m%d", errors="coerce")
+                frame["DATA_VALUE"] = pd.to_numeric(frame["DATA_VALUE"], errors="coerce")
+                frame = frame.dropna(subset=["TIME", "DATA_VALUE"]).sort_values("TIME")
+                if frame.empty:
+                    continue
+
+                valid = frame[(frame["DATA_VALUE"] > 0) & (frame["DATA_VALUE"] < 10)]
+                if valid.empty:
+                    logger.debug(
+                        "kr_rates::_fetch_ecos range_violation asset=%s sample=%s",
+                        asset,
+                        frame[["TIME", "DATA_VALUE"]].tail(5).to_dict("records"),
+                    )
+                    continue
+
+                current = float(valid.iloc[-1]["DATA_VALUE"])
+                prev = float(valid.iloc[-2]["DATA_VALUE"]) if len(valid) >= 2 else None
+                prev_date = valid.iloc[-2]["TIME"].date() if len(valid) >= 2 else None
+                return (
+                    {
+                        "value": current,
+                        "prev": prev,
+                        "prev_date": prev_date,
+                        "source": "BOK_ECOS",
+                        "quality": "secondary",
+                        "url": ECOS_URL,
+                        "note": f"fallback:ecos:{stat_code}:{candidate_code}",
+                    },
+                    None,
                 )
-                continue
-
-            current = float(valid.iloc[-1]["DATA_VALUE"])
-            prev = float(valid.iloc[-2]["DATA_VALUE"]) if len(valid) >= 2 else None
-            prev_date = valid.iloc[-2]["TIME"].date() if len(valid) >= 2 else None
-            return (
-                {
-                    "value": current,
-                    "prev": prev,
-                    "prev_date": prev_date,
-                    "source": "BOK_ECOS",
-                    "quality": "secondary",
-                    "url": ECOS_URL,
-                    "note": f"fallback:ecos:{candidate_code}",
-                },
-                None,
-            )
 
         return None, f"parse_failed:{ECOS_URL},empty"
 
-    def _discover_ecos_item_code(self, api_key: str, asset: str) -> Optional[str]:
+    def _discover_ecos_item_code(self, api_key: str, asset: str, stat_code: str) -> Optional[str]:
         """ECOS StatisticItemList에서 현재 유효한 item code를 탐색한다.
 
         사용자 로그에서 KR10Y가 `parse_failed:.../empty`로 반복되므로,
         통계 항목 코드 변경 가능성을 자동으로 점검하기 위한 보강 로직이다.
         """
-        cached = self._ecos_item_cache.get(asset)
+        cache_key = f"{asset}:{stat_code}"
+        cached = self._ecos_item_cache.get(cache_key)
         if cached:
             return cached
 
@@ -343,7 +379,7 @@ class KRXKorRates:
                 "kr",
                 "1",
                 "1000",
-                "060Y001",
+                stat_code,
             ]),
             # 일부 런타임에서 StatisticSearch 베이스를 재사용하는 케이스를 대비한 보조 포맷
             "/".join([
@@ -354,7 +390,7 @@ class KRXKorRates:
                 "1",
                 "1000",
                 "StatisticItemList",
-                "060Y001",
+                stat_code,
             ]),
         ]
 
@@ -379,8 +415,8 @@ class KRXKorRates:
                     continue
                 normalized = re.sub(r"\s+", "", name)
                 if all(token in normalized for token in keywords):
-                    self._ecos_item_cache[asset] = code
-                    logger.debug("kr_rates::_discover_ecos_item_code asset=%s code=%s name=%s", asset, code, name)
+                    self._ecos_item_cache[cache_key] = code
+                    logger.debug("kr_rates::_discover_ecos_item_code asset=%s stat=%s code=%s name=%s", asset, stat_code, code, name)
                     return code
         return None
 
