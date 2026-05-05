@@ -1,34 +1,34 @@
 ts_kst,asset,key,value,unit,window,change_abs,change_pct,source,quality,url,notes
-2026-05-05 07:33,KOSPI,idx,6598.870117,pt,1D,-92.029785,-0.013754,YahooFinance(^KS11),secondary,https://finance.yahoo.com/quote/^KS11,
-2026-05-05 07:33,KOSDAQ,idx,1192.349976,pt,1D,-27.910034,-0.022872,YahooFinance(^KQ11),secondary,https://finance.yahoo.com/quote/^KQ11,
-2026-05-05 07:33,KOSPI,advance,392.0,issues,1D,,,pykrx,secondary,https://github.com/sharebook-kr/pykrx,fallback:pykrx
-2026-05-05 07:33,KOSPI,decline,476.0,issues,1D,,,pykrx,secondary,https://github.com/sharebook-kr/pykrx,fallback:pykrx
-2026-05-05 07:33,KOSPI,unchanged,80.0,issues,1D,,,pykrx,secondary,https://github.com/sharebook-kr/pykrx,fallback:pykrx
-2026-05-05 07:33,KOSDAQ,advance,789.0,issues,1D,,,pykrx,secondary,https://github.com/sharebook-kr/pykrx,fallback:pykrx
-2026-05-05 07:33,KOSDAQ,decline,796.0,issues,1D,,,pykrx,secondary,https://github.com/sharebook-kr/pykrx,fallback:pykrx
-2026-05-05 07:33,KOSDAQ,unchanged,238.0,issues,1D,,,pykrx,secondary,https://github.com/sharebook-kr/pykrx,fallback:pykrx
-2026-05-05 07:33,KOSPI,limit_up,3.0,issues,1D,,,pykrx,secondary,https://github.com/sharebook-kr/pykrx,fallback:pykrx
-2026-05-05 07:33,KOSPI,limit_down,0.0,issues,1D,,,pykrx,secondary,https://github.com/sharebook-kr/pykrx,fallback:pykrx
-2026-05-05 07:33,KOSPI,trin,0.413611,ratio,1D,,,pykrx,secondary,https://github.com/sharebook-kr/pykrx,fallback:pykrx
-2026-05-05 07:33,KOSPI,trading_value,42696032755097.0,KRW,1D,,,pykrx,secondary,https://github.com/sharebook-kr/pykrx,fallback:pykrx
-2026-05-05 07:33,K200,hv30,0.518431,vol,30D,,,YahooFinance(^KS200),secondary,https://finance.yahoo.com/quote/^KS200,
-2026-05-05 07:33,ES,basis,0.004409,ratio,1D,,,YahooFinance(ES=F),secondary,https://finance.yahoo.com/quote/ES=F,
-2026-05-05 07:33,NQ,basis,0.004527,ratio,1D,,,YahooFinance(NQ=F),secondary,https://finance.yahoo.com/quote/NQ=F,
-2026-05-05 07:33,SOX,ret_1w,0.012165,return,1W,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
-2026-05-05 07:33,SOX,ret_1m,0.34484,return,1M,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
-2026-05-05 07:33,USD/KRW,spot,1476.150024,KRW,1D,2.140015,0.001452,YahooFinance(KRW=X),secondary,https://finance.yahoo.com/quote/KRW=X,
-2026-05-05 07:33,DXY,idx,98.478996,idx,1D,,,yfinance,secondary,https://finance.yahoo.com/quote/DX-Y.NYB,fallback:yfinance:DX-Y.NYB
-2026-05-05 07:33,UST2Y,yield,3.95,pct,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
-2026-05-05 07:33,UST10Y,yield,4.45,pct,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
-2026-05-05 07:33,KR3Y,yield,3.61,pct,1D,0.02,0.005571,naver,secondary,https://finance.naver.com/marketindex/interestDailyQuote.naver?marketindexCd=IRR_GOVT03Y&page=1,fallback:naver:IRR_GOVT03Y
-2026-05-05 07:33,KR10Y,yield,,pct,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd | parse_failed:https://www.kofiabond.or.kr/websquare/websquare.html?divisionId=MBIS01010010000000,pattern_missing | parse_failed:https://ecos.bok.or.kr/,empty | parse_failed:KIS,empty|KR10Y:symbol_not_found@https://finance.koreainvestment.com/bond/kr10y|KR3Y:symbol_not_found@https://finance.koreainvestment.com/bond/kr3y | parse_failed:https://finance.naver.com/marketindex/interestDailyQuote.naver?marketindexCd=IRR_GOVT10YEAR&page=1,empty_table | parse_failed:https://www.investing.com/rates-bonds/south-korea-10-year-bond-yield,403 Client Error: Forbidden for url: https://www.investing.com/rates-bonds/south-korea-10-year-bond-yield"
-2026-05-05 07:33,TIPS10Y,yield,1.95,pct,1D,,,treasury_real,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_real_yield_curve&field_tdr_date_value=2026,fallback:treasury_real
-2026-05-05 07:33,2s10s_US,spread,50.0,bp,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026 https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,ok
-2026-05-05 07:33,2s10s_KR,spread,,bp,1D,,,naver,secondary,https://finance.naver.com/marketindex/interestDailyQuote.naver?marketindexCd=IRR_GOVT03Y&page=1,upstream_missing:KR10Y
-2026-05-05 07:33,WTI,spot,104.900002,USD,1D,2.959999,0.029037,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/CL=F,
-2026-05-05 07:33,Brent,spot,113.82,USD,1D,5.650002,0.052233,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BZ=F,
-2026-05-05 07:33,Gold,spot,4531.200195,USD,1D,-98.699707,-0.021318,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/GC=F,
-2026-05-05 07:33,Copper,spot,5.863,USD,1D,-0.069,-0.011632,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/HG=F,
-2026-05-05 07:33,BTC,spot,80149.648438,USD,1D,1611.421875,0.020518,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
-2026-05-05 07:33,BTC,corr20,0.229511,corr,20D,,,finance.yahoo.com+YahooFinance(NQ=F),secondary,https://finance.yahoo.com/quote/BTC-USD https://finance.yahoo.com/quote/NQ=F,
-2026-05-05 07:41:51,VIX,spot,18.290000915527344,pt,1D,,,yfinance,secondary,https://finance.yahoo.com/quote/%5EVIX,
+2026-05-05 18:50,KOSPI,idx,6936.990234,pt,EOD,338.120117,0.051239,YahooFinance(^KS11),final,https://finance.yahoo.com/quote/^KS11,
+2026-05-05 18:50,KOSDAQ,idx,1213.73999,pt,EOD,21.390015,0.017939,YahooFinance(^KQ11),final,https://finance.yahoo.com/quote/^KQ11,
+2026-05-05 18:50,KOSPI,advance,0.0,issues,EOD,,,pykrx,final,https://github.com/sharebook-kr/pykrx,fallback:pykrx
+2026-05-05 18:50,KOSPI,decline,0.0,issues,EOD,,,pykrx,final,https://github.com/sharebook-kr/pykrx,fallback:pykrx
+2026-05-05 18:50,KOSPI,unchanged,948.0,issues,EOD,,,pykrx,final,https://github.com/sharebook-kr/pykrx,fallback:pykrx
+2026-05-05 18:50,KOSDAQ,advance,0.0,issues,EOD,,,pykrx,final,https://github.com/sharebook-kr/pykrx,fallback:pykrx
+2026-05-05 18:50,KOSDAQ,decline,0.0,issues,EOD,,,pykrx,final,https://github.com/sharebook-kr/pykrx,fallback:pykrx
+2026-05-05 18:50,KOSDAQ,unchanged,1823.0,issues,EOD,,,pykrx,final,https://github.com/sharebook-kr/pykrx,fallback:pykrx
+2026-05-05 18:50,KOSPI,limit_up,0.0,issues,1D,,,pykrx,final,https://github.com/sharebook-kr/pykrx,fallback:pykrx
+2026-05-05 18:50,KOSPI,limit_down,0.0,issues,1D,,,pykrx,final,https://github.com/sharebook-kr/pykrx,fallback:pykrx
+2026-05-05 18:50,KOSPI,trin,,ratio,1D,,,KIS,final,,"upstream_missing:https://github.com/sharebook-kr/pykrx,zero_volume"
+2026-05-05 18:50,KOSPI,trading_value,0.0,KRW,1D,,,pykrx,final,https://github.com/sharebook-kr/pykrx,fallback:pykrx
+2026-05-05 18:50,K200,hv30,0.539335,vol,30D,,,YahooFinance(^KS200),final,https://finance.yahoo.com/quote/^KS200,
+2026-05-05 18:50,ES,basis,0.007534,ratio,1D,,,YahooFinance(ES=F),final,https://finance.yahoo.com/quote/ES=F,
+2026-05-05 18:50,NQ,basis,0.010404,ratio,1D,,,YahooFinance(NQ=F),final,https://finance.yahoo.com/quote/NQ=F,
+2026-05-05 18:50,SOX,ret_1w,0.012166,return,1W,,,YahooFinance(^SOX),final,https://finance.yahoo.com/quote/^SOX,
+2026-05-05 18:50,SOX,ret_1m,0.34484,return,1M,,,YahooFinance(^SOX),final,https://finance.yahoo.com/quote/^SOX,
+2026-05-05 18:50,USD/KRW,spot,1473.27002,KRW,EOD,1.540039,0.001046,YahooFinance(KRW=X),final,https://finance.yahoo.com/quote/KRW=X,
+2026-05-05 18:50,DXY,idx,98.459999,idx,EOD,,,yfinance,final,https://finance.yahoo.com/quote/DX-Y.NYB,fallback:yfinance:DX-Y.NYB
+2026-05-05 18:50,UST2Y,yield,3.95,pct,EOD,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
+2026-05-05 18:50,UST10Y,yield,4.45,pct,EOD,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
+2026-05-05 18:50,KR3Y,yield,3.61,pct,EOD,0.02,0.005571,naver,final,https://finance.naver.com/marketindex/interestDailyQuote.naver?marketindexCd=IRR_GOVT03Y&page=1,fallback:naver:IRR_GOVT03Y
+2026-05-05 18:50,KR10Y,yield,,pct,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/contents/MDC/MDI/mdiLoader/index.cmd?menuId=MDC020104040401,400 Client Error: Bad Request for url: https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd | parse_failed:https://www.kofiabond.or.kr/websquare/websquare.html?divisionId=MBIS01010010000000,pattern_missing | parse_failed:https://ecos.bok.or.kr/,empty | parse_failed:KIS,empty|KR3Y:symbol_not_found@https://finance.koreainvestment.com/bond/kr3y|KR10Y:symbol_not_found@https://finance.koreainvestment.com/bond/kr10y | parse_failed:https://finance.naver.com/marketindex/interestDailyQuote.naver?marketindexCd=IRR_GOVT10YEAR&page=1,empty_table | parse_failed:https://www.investing.com/rates-bonds/south-korea-10-year-bond-yield,403 Client Error: Forbidden for url: https://www.investing.com/rates-bonds/south-korea-10-year-bond-yield"
+2026-05-05 18:50,TIPS10Y,yield,1.95,pct,EOD,,,treasury_real,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_real_yield_curve&field_tdr_date_value=2026,fallback:treasury_real
+2026-05-05 18:50,2s10s_US,spread,50.0,bp,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026 https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,ok
+2026-05-05 18:50,2s10s_KR,spread,,bp,1D,,,naver,final,https://finance.naver.com/marketindex/interestDailyQuote.naver?marketindexCd=IRR_GOVT03Y&page=1,upstream_missing:KR10Y
+2026-05-05 18:50,WTI,spot,103.760002,USD,1D,-2.659996,-0.024995,finance.yahoo.com,final,https://finance.yahoo.com/quote/CL=F,
+2026-05-05 18:50,Brent,spot,112.660004,USD,1D,-1.779999,-0.015554,finance.yahoo.com,final,https://finance.yahoo.com/quote/BZ=F,
+2026-05-05 18:50,Gold,spot,4565.799805,USD,1D,46.299805,0.010244,finance.yahoo.com,final,https://finance.yahoo.com/quote/GC=F,
+2026-05-05 18:50,Copper,spot,5.9725,USD,1D,0.1775,0.03063,finance.yahoo.com,final,https://finance.yahoo.com/quote/HG=F,
+2026-05-05 18:50,BTC,spot,80561.8125,USD,1D,733.90625,0.009194,finance.yahoo.com,final,https://finance.yahoo.com/quote/BTC-USD,
+2026-05-05 18:50,BTC,corr20,0.253432,corr,20D,,,YahooFinance(NQ=F)+finance.yahoo.com,final,https://finance.yahoo.com/quote/BTC-USD https://finance.yahoo.com/quote/NQ=F,
+2026-05-05 18:58:25,VIX,spot,17.700000762939453,pt,1D,,,yfinance,final,https://finance.yahoo.com/quote/%5EVIX,
