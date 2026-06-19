@@ -1,0 +1,4 @@
+{"event": "start", "ts": "2026-06-20T07:31:49.520552+09:00", "phase": "0730"}
+{"event": "raw", "ts": "2026-06-20T07:31:49.520552+09:00", "assets": ["KOSPI", "KOSDAQ", "K200", "SPX", "NDX", "SOX", "USD/KRW", "ES", "NQ", "KR3Y", "KR10Y", "UST2Y", "UST10Y", "TIPS10Y", "DXY", "WTI", "Brent", "Gold", "Copper", "BTC"]}
+{"event": "coverage", "ts": "2026-06-20T07:31:49.520552+09:00", "ratio": 1.0}
+{"event": "success", "ts": "2026-06-20T07:31:49.520552+09:00", "phase": "0730"}
