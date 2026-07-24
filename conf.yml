@@ -169,16 +169,16 @@ ecos:
   timeout: 25
   series:
     KR3Y:
-      statistic: 060Y001
-      cycle: DD
-      items: [0101000]
+      statistic: 817Y002
+      cycle: D
+      items: [010200000]
       end_row: 600
       unit: pct
       url: https://ecos.bok.or.kr/api/StatisticSearch/
     KR10Y:
-      statistic: 060Y001
-      cycle: DD
-      items: [0103000]
+      statistic: 817Y002
+      cycle: D
+      items: [010210000]
       end_row: 600
       unit: pct
       url: https://ecos.bok.or.kr/api/StatisticSearch/

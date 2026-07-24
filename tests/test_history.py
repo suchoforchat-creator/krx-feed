@@ -116,6 +116,37 @@ def test_upsert_creates_row(tmp_path: Path) -> None:
     assert report.field_status["kospi"]["status"] == "ok_eod"
 
 
+def test_upsert_maps_kr10y_yield(tmp_path: Path) -> None:
+    latest_path = tmp_path / "out" / "latest.csv"
+    history_path = tmp_path / "out" / "history.csv"
+    write_latest(
+        latest_path,
+        [
+            {
+                "ts_kst": "2026-07-24 17:00:00",
+                "asset": "KR10Y",
+                "key": "yield",
+                "value": 4.447,
+                "unit": "pct",
+                "window": "EOD",
+                "source": "BOK_ECOS",
+                "quality": "secondary",
+                "notes": "fallback:ecos:817Y002:010210000",
+            }
+        ],
+    )
+
+    update_history.upsert_from_latest(
+        latest_path,
+        history_path,
+        now=datetime(2026, 7, 24, 17, 5, tzinfo=KST),
+    )
+
+    frame = pd.read_csv(history_path, dtype=str).fillna("")
+    assert float(frame.iloc[0]["kr10y"]) == 4.447
+    assert frame.iloc[0]["src_tag"] == "bok_ecos"
+
+
 def test_upsert_overwrites_existing_row(tmp_path: Path) -> None:
     latest_path = tmp_path / "out" / "latest.csv"
     history_path = tmp_path / "out" / "history.csv"
