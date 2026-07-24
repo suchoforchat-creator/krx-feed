@@ -44,19 +44,18 @@ INVESTING_URLS = {
 
 YIELD_COLUMNS = ["LST_ORD_BAS_YD", "LST_ORD_YD", "수익률", "YLD", "APPL_YD"]
 ECOS_STAT_CODES = {
-    # 060Y001: 시장금리(일별) 구버전/대표 코드
-    # 817Y002: 일부 런타임에서 동일 계열 금리 데이터가 이 코드에만 존재하는 케이스 대응
-    "KR3Y": ["060Y001", "817Y002"],
-    "KR10Y": ["060Y001", "817Y002"],
+    # 817Y002: 시장금리(일별)의 현재 통계표 코드.
+    "KR3Y": ["817Y002"],
+    "KR10Y": ["817Y002"],
 }
 ECOS_ITEM_CODES = {
-    # 현장에서 7자리(0103000) / 9자리(010300000) 혼용 이슈가 발생해 둘 다 시도한다.
-    "KR3Y": ["0101000", "010100000"],
-    "KR10Y": ["0103000", "010300000"],
+    # 817Y002의 공식 항목 코드. 010300000은 회사채(3년, AA-)이므로
+    # KR10Y 후보로 사용하면 안 된다.
+    "KR3Y": ["010200000"],
+    "KR10Y": ["010210000"],
 }
 ECOS_ITEM_KEYWORDS = {
-    # ECOS ITEM_CODE가 개편되면 고정 코드(0103000)로는 empty가 발생할 수 있다.
-    # 아래 키워드로 ITEM_NAME을 탐색해 현재 유효한 코드를 자동 복구한다.
+    # 발급 API 키가 있으면 ITEM_NAME으로 현재 유효한 코드를 자동 탐색한다.
     "KR3Y": ["국고채", "3년"],
     "KR10Y": ["국고채", "10년"],
 }
@@ -237,63 +236,74 @@ class KRXKorRates:
         item_codes = ECOS_ITEM_CODES.get(asset)
         if not item_codes:
             return None, f"parse_failed:{ECOS_URL},item_code_missing"
-        stat_codes = ECOS_STAT_CODES.get(asset, ["060Y001"])
+        stat_codes = ECOS_STAT_CODES.get(asset, ["817Y002"])
         if not stat_codes:
-            stat_codes = ["060Y001"]
+            stat_codes = ["817Y002"]
 
-        # 디버깅 편의: 하드코드 item_code가 만료되는 경우를 대비해 자동 탐색을 시도한다.
-        # 1) 기본 코드로 먼저 조회
-        # 2) empty면 StatisticItemList로 현재 코드를 탐색해 재시도
         candidate_item_codes = list(dict.fromkeys(item_codes))
 
         end = target.strftime("%Y%m%d")
+        sample_mode = api_key == "sample"
+        row_limit = 10 if sample_mode else 400
         start = (target - timedelta(days=40)).strftime("%Y%m%d")
+        last_error: Optional[str] = None
+
+        def fetch_page(stat_code: str, item_code: str, start_row: int, end_row: int) -> tuple[dict, str]:
+            url = "/".join(
+                [
+                    ECOS_STAT_URL,
+                    api_key,
+                    "json",
+                    "kr",
+                    str(start_row),
+                    str(end_row),
+                    stat_code,
+                    "D",
+                    start,
+                    end,
+                    item_code,
+                ]
+            )
+            response = self._session.get(url, timeout=20)
+            response.raise_for_status()
+            payload = response.json()
+            result = payload.get("RESULT", {}) if isinstance(payload, dict) else {}
+            if isinstance(result, dict) and result.get("CODE") not in (None, "INFO-000"):
+                raise ValueError(f"ecos_result_{result.get('CODE')}")
+            if not isinstance(payload, dict):
+                raise ValueError("ecos_payload_invalid")
+            return payload, url
+
         for stat_code in stat_codes:
-            discovered = self._discover_ecos_item_code(api_key, asset, stat_code)
             item_code_candidates = list(candidate_item_codes)
-            if discovered and discovered not in item_code_candidates:
-                item_code_candidates.append(discovered)
+            # sample 키의 StatisticItemList 역시 10건 제한 때문에 전체 항목 탐색이
+            # 불가능하다. 공식 정적 코드를 먼저 사용하고, 발급 키에서만 자동 탐색한다.
+            if not sample_mode:
+                discovered = self._discover_ecos_item_code(api_key, asset, stat_code)
+                if discovered and discovered not in item_code_candidates:
+                    item_code_candidates.append(discovered)
 
             for candidate_code in item_code_candidates:
-                url = "/".join(
-                    [
-                        ECOS_STAT_URL,
-                        api_key,
-                        "json",
-                        "kr",
-                        "1",
-                        "400",
-                        stat_code,
-                        "DD",
-                        start,
-                        end,
-                        candidate_code,
-                        "",
-                        "",
-                    ]
-                )
                 try:
-                    response = self._session.get(url, timeout=20)
-                    response.raise_for_status()
-                    payload = response.json()
-                except Exception as exc:  # pragma: no cover
-                    return None, f"parse_failed:{ECOS_URL},{exc}"
+                    payload, url = fetch_page(stat_code, candidate_code, 1, row_limit)
+                    search_result = payload.get("StatisticSearch", {})
+                    rows = search_result.get("row", []) if isinstance(search_result, dict) else []
 
-                # ECOS는 HTTP 200이어도 RESULT 코드로 에러를 돌려줄 수 있어 별도 점검한다.
-                result = payload.get("RESULT", {}) if isinstance(payload, dict) else {}
-                if isinstance(result, dict) and result.get("CODE") not in (None, "INFO-000"):
-                    logger.debug(
-                        "kr_rates::_fetch_ecos result_error asset=%s stat=%s item=%s code=%s msg=%s",
-                        asset,
-                        stat_code,
-                        candidate_code,
-                        result.get("CODE"),
-                        result.get("MESSAGE"),
-                    )
+                    # sample 키는 요청당 10건 제한이다. 첫 페이지의 전체 건수를
+                    # 읽은 뒤 마지막 10건을 다시 요청해야 최신값을 얻을 수 있다.
+                    if sample_mode and rows:
+                        total_count = int(search_result.get("list_total_count", len(rows)))
+                        if total_count > row_limit:
+                            last_start = max(1, total_count - row_limit + 1)
+                            payload, url = fetch_page(stat_code, candidate_code, last_start, total_count)
+                            search_result = payload.get("StatisticSearch", {})
+                            rows = search_result.get("row", []) if isinstance(search_result, dict) else []
+                except Exception as exc:  # pragma: no cover
+                    last_error = f"parse_failed:{ECOS_URL},{exc}"
                     continue
 
-                rows = payload.get("StatisticSearch", {}).get("row", [])
                 if not rows:
+                    last_error = f"parse_failed:{ECOS_URL},empty:{stat_code}:{candidate_code}"
                     logger.debug(
                         "kr_rates::_fetch_ecos empty rows asset=%s stat=%s item=%s payload_keys=%s",
                         asset,
@@ -304,7 +314,18 @@ class KRXKorRates:
                     continue
 
                 frame = pd.DataFrame(rows)
+                if "ITEM_CODE1" in frame.columns:
+                    frame = frame.loc[frame["ITEM_CODE1"].astype(str).str.strip() == candidate_code]
+                if "ITEM_NAME1" in frame.columns:
+                    normalized_name = frame["ITEM_NAME1"].astype(str).str.replace(r"\s+", "", regex=True)
+                    for token in ECOS_ITEM_KEYWORDS.get(asset, []):
+                        normalized_token = re.sub(r"\s+", "", token)
+                        frame = frame.loc[normalized_name.loc[frame.index].str.contains(normalized_token, regex=False)]
+                if frame.empty:
+                    last_error = f"parse_failed:{ECOS_URL},series_mismatch:{stat_code}:{candidate_code}"
+                    continue
                 if "TIME" not in frame.columns or "DATA_VALUE" not in frame.columns:
+                    last_error = f"parse_failed:{ECOS_URL},field_missing:{stat_code}:{candidate_code}"
                     logger.debug("kr_rates::_fetch_ecos missing fields asset=%s columns=%s", asset, list(frame.columns))
                     continue
 
@@ -339,7 +360,7 @@ class KRXKorRates:
                     None,
                 )
 
-        return None, f"parse_failed:{ECOS_URL},empty"
+        return None, (last_error or f"parse_failed:{ECOS_URL},empty")
 
     def _discover_ecos_item_code(self, api_key: str, asset: str, stat_code: str) -> Optional[str]:
         """ECOS StatisticItemList에서 현재 유효한 item code를 탐색한다.

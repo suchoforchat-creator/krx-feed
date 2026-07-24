@@ -4,7 +4,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass
-from datetime import datetime, timedelta, time
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, Iterable, Optional
 
@@ -19,9 +19,9 @@ from ..utils import KST, kst_now
 logger = logging.getLogger(__name__)
 
 ECOS_STAT_FALLBACKS: Dict[str, list[str]] = {
-    # 운영 환경마다 060Y001/817Y002 중 한쪽만 값이 존재하는 케이스를 대비.
-    "KR3Y": ["060Y001", "817Y002"],
-    "KR10Y": ["060Y001", "817Y002"],
+    # 817Y002가 현재 시장금리(일별) 코드다.
+    "KR3Y": ["817Y002"],
+    "KR10Y": ["817Y002"],
 }
 
 
@@ -295,77 +295,45 @@ class KISClient:
         return section.get(name)
 
     def _pykrx_kor_yields(self, periods: int = 120) -> pd.DataFrame:
-        records: list[dict[str, Any]] = []
-        candidates = {
-            "kr3y": [
-                "국고채(3년)",
-                "3년",
-                "3년물",
-                "3Y",
-                "3-year",
-                "국채3년",
-            ],
-            "kr10y": [
-                "국고채(10년)",
-                "10년",
-                "10년물",
-                "10Y",
-                "10-year",
-                "국채10년",
-            ],
-        }
-
-        def pick(series_df: pd.DataFrame, key: str) -> pd.Series:
-            for column in candidates[key]:
-                if column in series_df.columns:
-                    values = pd.to_numeric(series_df[column], errors="coerce")
-                    if values.notna().any():
-                        return values
-            return pd.Series(dtype=float)
-
         today = datetime.now(KST).date()
-        for offset in range(periods * 3):
-            current = today - timedelta(days=offset)
-            date_str = current.strftime("%Y%m%d")
+        start = today - timedelta(days=periods * 3)
+        start_str = start.strftime("%Y%m%d")
+        end_str = today.strftime("%Y%m%d")
+
+        def fetch_series(kind: str, alias: str) -> pd.DataFrame:
             try:
-                daily = bond.get_otc_treasury_yields(date_str)
+                raw = bond.get_otc_treasury_yields(start_str, end_str, kind)
             except Exception as exc:  # pragma: no cover - network dependent
-                logger.debug("pykrx 국채수익률 조회 실패(%s): %s", date_str, exc)
-                continue
+                logger.debug("pykrx 국채수익률 조회 실패(%s, %s): %s", kind, end_str, exc)
+                return pd.DataFrame(columns=["ts_kst", alias])
+            if raw is None or raw.empty:
+                return pd.DataFrame(columns=["ts_kst", alias])
 
-            if daily is None or daily.empty:
-                continue
-
-            daily = daily.reset_index(drop=True)
-            three = pick(daily, "kr3y")
-            ten = pick(daily, "kr10y")
-
-            if three.empty or ten.empty:
-                continue
-
-            value3 = three.iloc[-1]
-            value10 = ten.iloc[-1]
-            if pd.isna(value3) or pd.isna(value10):
-                continue
-
-            ts = datetime.combine(current, time(17, 0), tzinfo=KST)
-            records.append(
-                {
-                    "ts_kst": ts,
-                    "kr3y": float(value3),
-                    "kr10y": float(value10),
-                }
+            yield_column = next(
+                (column for column in ("수익률", "yield", "YIELD", "YLD") if column in raw.columns),
+                None,
             )
+            if yield_column is None:
+                return pd.DataFrame(columns=["ts_kst", alias])
 
-            if len(records) >= periods:
-                break
+            dates = pd.to_datetime(pd.Index(raw.index).astype(str), errors="coerce")
+            if dates.tz is None:
+                dates = dates.tz_localize(KST, nonexistent="shift_forward", ambiguous="NaT")
+            else:
+                dates = dates.tz_convert(KST)
+            values = pd.to_numeric(raw[yield_column], errors="coerce").to_numpy()
+            frame = pd.DataFrame({"ts_kst": dates, alias: values}).dropna()
+            frame = frame.loc[(frame[alias] > 0) & (frame[alias] < 10)]
+            return frame.drop_duplicates(subset=["ts_kst"], keep="last")
 
-        frame = pd.DataFrame(records)
-        if frame.empty:
+        three = fetch_series("국고채3년", "kr3y")
+        ten = fetch_series("국고채10년", "kr10y")
+        if three.empty or ten.empty:
             return pd.DataFrame(
                 columns=["ts_kst", "kr3y", "kr10y", "source", "quality", "url"]
             )
 
+        frame = three.merge(ten, on="ts_kst", how="inner")
         frame = frame.drop_duplicates(subset=["ts_kst"]).sort_values("ts_kst").tail(periods)
         frame["source"] = "pykrx"
         frame["quality"] = "secondary"
@@ -419,7 +387,7 @@ class KISClient:
             if not statistic:
                 failures[alias] = "ecos_statistic_missing"
                 continue
-            cycle = meta.get("cycle", "DD")
+            cycle = meta.get("cycle", "D")
             # ITEM_CODE가 7자리/9자리로 혼용되는 케이스가 있어 변형 후보를 모두 시도한다.
             raw_items = [str(x).strip() for x in list(meta.get("items", [])) if str(x).strip()]
             item_candidates: list[str] = []
@@ -438,7 +406,6 @@ class KISClient:
             fetched = False
             for stat_code in stat_candidates:
                 for item_code in item_candidates:
-                    items = [item_code, "", ""]
                     url = "/".join(
                         [
                             base_url.rstrip("/"),
@@ -451,7 +418,7 @@ class KISClient:
                             cycle,
                             start_str,
                             end_str,
-                            *(item or "" for item in items[:3]),
+                            item_code,
                         ]
                     )
                     try:
