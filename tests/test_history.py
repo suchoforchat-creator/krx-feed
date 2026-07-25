@@ -606,7 +606,24 @@ def test_checked_in_history_sanitizes_all_closed_dates() -> None:
         history["time_kst"].astype(str).str.slice(0, 10).isin(closed_dates)
     ]
 
-    assert len(matching) == 12
+    required_repaired_dates = {
+        "2025-12-25",
+        "2025-12-31",
+        "2026-01-01",
+        "2026-02-16",
+        "2026-02-17",
+        "2026-02-18",
+        "2026-03-02",
+        "2026-05-01",
+        "2026-05-05",
+        "2026-05-25",
+        "2026-06-03",
+        "2026-07-17",
+    }
+    matching_dates = set(
+        matching["time_kst"].astype(str).str.slice(0, 10)
+    )
+    assert required_repaired_dates.issubset(matching_dates)
     for _, record in matching.iterrows():
         assert all(record[column] == "" for column in update_history.MARKET_COLUMNS)
         tokens = [token for token in record["src_tag"].split("|") if token]
