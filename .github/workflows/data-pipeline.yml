@@ -2,8 +2,8 @@ name: data-pipeline
 
 on:
   schedule:
-    # 06:30 KST (21:30 UTC, previous day)
-    - cron: '30 21 * * 1-5'
+    # Monday-Friday 07:30 KST (22:30 UTC, previous day)
+    - cron: '30 22 * * 0-4'
     - cron: '00 08 * * 1-5'
   workflow_dispatch:
 
@@ -19,8 +19,8 @@ env:
   KRX_PW: ${{ secrets.KRX_PW }}
   
 jobs:
-  collect_0630:
-    if: github.event.schedule == '30 21 * * 1-5'
+  collect_0730:
+    if: github.event.schedule == '30 22 * * 0-4'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
