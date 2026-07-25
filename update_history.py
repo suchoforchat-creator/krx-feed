@@ -7,6 +7,7 @@ history.csv에 1행으로 업서트(upsert)하는 작업을 담당합니다. 초
 
 from __future__ import annotations
 
+import csv
 import json
 import shutil
 from dataclasses import dataclass, field
@@ -102,6 +103,22 @@ VALUE_VALIDATORS: Dict[str, Tuple[Optional[float], Optional[float]]] = {
 # history.csv에 기록할 기준 시각(매일 15:30:00)입니다.
 EOD_TIME_STR = "15:30:00"
 
+# KRX 휴장일에는 거래소 시장 수치만 비우고, 해외·거시지표는 보존합니다.
+# 기존 history.csv 스키마를 바꾸지 않기 위해 src_tag에 market_closed 토큰을 남깁니다.
+MARKET_COLUMNS: List[str] = [
+    "kospi",
+    "kosdaq",
+    "kospi_adv",
+    "kospi_dec",
+    "kospi_unch",
+    "kosdaq_adv",
+    "kosdaq_dec",
+    "kosdaq_unch",
+]
+DEFAULT_CLOSED_DATES_PATH = (
+    Path(__file__).resolve().parent / "config" / "krx_closed_dates.csv"
+)
+
 
 # ---------------------------------------------------------------------------
 # 디버깅 도우미 클래스
@@ -168,6 +185,79 @@ def _load_latest(latest_path: Path, debug: DebugReport) -> pd.DataFrame:
     frame["window"] = frame["window"].fillna("")
     frame["date_kst"] = frame["ts_kst"].dt.date
     return frame
+
+
+def _load_closed_dates(
+    closed_dates_path: Path,
+    debug: DebugReport,
+) -> Dict[date, Dict[str, str]]:
+    """검증된 KRX 휴장일 CSV를 읽습니다.
+
+    달력이 없거나 손상된 상태에서 거래일을 추정하면 history.csv가 다시
+    오염될 수 있으므로, 조용히 폴백하지 않고 배치를 실패시킵니다.
+    """
+
+    if not closed_dates_path.exists():
+        raise FileNotFoundError(
+            f"KRX closed-date calendar not found: {closed_dates_path}"
+        )
+
+    closed_dates: Dict[date, Dict[str, str]] = {}
+    with closed_dates_path.open("r", encoding="utf-8-sig", newline="") as handle:
+        reader = csv.DictReader(handle)
+        required_columns = {"date", "reason", "source"}
+        if reader.fieldnames is None or not required_columns.issubset(
+            set(reader.fieldnames)
+        ):
+            raise ValueError(
+                "KRX closed-date calendar must contain date, reason, source columns"
+            )
+
+        for row_number, record in enumerate(reader, start=2):
+            raw_date = str(record.get("date", "")).strip()
+            reason = str(record.get("reason", "")).strip()
+            source = str(record.get("source", "")).strip()
+            if not raw_date or not reason or not source:
+                raise ValueError(
+                    f"Invalid KRX closed-date calendar row: {row_number}"
+                )
+            try:
+                closed_date = date.fromisoformat(raw_date)
+            except ValueError as exc:
+                raise ValueError(
+                    f"Invalid KRX closed date at row {row_number}: {raw_date}"
+                ) from exc
+            if closed_date in closed_dates:
+                raise ValueError(
+                    f"Duplicate KRX closed date at row {row_number}: {raw_date}"
+                )
+            closed_dates[closed_date] = {
+                "reason": reason,
+                "source": source,
+            }
+
+    if not closed_dates:
+        raise ValueError("KRX closed-date calendar is empty")
+
+    debug.log(
+        "KRX 휴장일 달력 로드",
+        path=str(closed_dates_path),
+        dates=len(closed_dates),
+    )
+    return closed_dates
+
+
+def _append_src_tag(row: Dict[str, str], tag: str) -> None:
+    """기존 출처 순서를 유지하면서 src_tag 토큰을 중복 없이 추가합니다."""
+
+    source_tags = [
+        item.strip()
+        for item in str(row.get("src_tag", "")).split("|")
+        if item.strip()
+    ]
+    if tag not in source_tags:
+        source_tags.append(tag)
+    row["src_tag"] = "|".join(source_tags)
 
 
 def _choose_target_date(frame: pd.DataFrame, debug: DebugReport) -> Optional[date]:
@@ -337,6 +427,90 @@ def _build_empty_history_row(target_date: date, debug: DebugReport) -> Dict[str,
     return row
 
 
+def _apply_market_closed_policy(
+    row: Dict[str, str],
+    target_date: date,
+    closed_dates: Dict[date, Dict[str, str]],
+    debug: DebugReport,
+) -> Dict[str, str]:
+    """휴장일의 KRX 시장 필드만 비우고 market_closed 토큰을 기록합니다."""
+
+    closed_date_info = closed_dates.get(target_date)
+    if closed_date_info is None:
+        return row
+
+    for column in MARKET_COLUMNS:
+        row[column] = ""
+        debug.mark_field(
+            column,
+            "market_closed",
+            reason=closed_date_info["reason"],
+            calendar_source=closed_date_info["source"],
+        )
+
+    _append_src_tag(row, "market_closed")
+    debug.log(
+        "KRX 휴장일 시장 필드 공란 처리",
+        target_date=str(target_date),
+        reason=closed_date_info["reason"],
+        calendar_source=closed_date_info["source"],
+    )
+    return row
+
+
+def _normalize_closed_history_rows(
+    history_frame: pd.DataFrame,
+    closed_dates: Dict[date, Dict[str, str]],
+    debug: DebugReport,
+) -> pd.DataFrame:
+    """기존 history 행도 휴장일 정책에 맞춰 결정론적으로 정규화합니다."""
+
+    normalized = history_frame.copy()
+    matched_rows = 0
+    changed_rows = 0
+
+    for row_index in normalized.index:
+        timestamp_text = str(normalized.at[row_index, "time_kst"]).strip()
+        try:
+            row_date = date.fromisoformat(timestamp_text[:10])
+        except ValueError:
+            # 잘못된 타임스탬프는 이 함수에서 보정하지 않습니다. 기존 검증기가
+            # 원본 오류를 그대로 드러낼 수 있도록 보존합니다.
+            continue
+        if row_date not in closed_dates:
+            continue
+
+        matched_rows += 1
+        row_changed = False
+        for column in MARKET_COLUMNS:
+            if str(normalized.at[row_index, column]).strip():
+                row_changed = True
+            normalized.at[row_index, column] = ""
+
+        source_tags = [
+            tag.strip()
+            for tag in str(normalized.at[row_index, "src_tag"]).split("|")
+            if tag.strip()
+        ]
+        if "market_closed" not in source_tags:
+            source_tags.append("market_closed")
+            row_changed = True
+        deduplicated_tags = list(dict.fromkeys(source_tags))
+        if deduplicated_tags != source_tags:
+            row_changed = True
+        normalized.at[row_index, "src_tag"] = "|".join(deduplicated_tags)
+
+        if row_changed:
+            changed_rows += 1
+
+    debug.log(
+        "기존 KRX 휴장일 행 정규화",
+        matched_rows=matched_rows,
+        changed_rows=changed_rows,
+    )
+    return normalized
+
+
 def _load_history(history_path: Path, debug: DebugReport) -> pd.DataFrame:
     """기존 history.csv를 로드하고 없으면 빈 DataFrame을 생성합니다."""
 
@@ -369,6 +543,7 @@ def upsert_from_latest(
     *,
     now: Optional[datetime] = None,
     debug_dir: str | Path | None = None,
+    closed_dates_path: str | Path | None = None,
 ) -> DebugReport:
     """latest.csv를 읽어 history.csv에 1행을 업서트합니다.
 
@@ -382,6 +557,9 @@ def upsert_from_latest(
         현재 KST 시각(테스트 편의를 위한 주입). None이면 시스템 시간을 사용합니다.
     debug_dir : str | Path, optional
         디버깅 JSON을 저장할 디렉터리. None이면 파일을 저장하지 않습니다.
+    closed_dates_path : str | Path, optional
+        KRX 휴장일 CSV 경로. None이면 저장소의 config/krx_closed_dates.csv를
+        사용합니다.
 
     Returns
     -------
@@ -394,6 +572,12 @@ def upsert_from_latest(
     history_path = Path(history_path)
     now = now.astimezone(KST) if now else datetime.now(KST)
     debug.log("시간 가드 비활성화", now_kst=now.isoformat())
+    calendar_path = (
+        Path(closed_dates_path)
+        if closed_dates_path is not None
+        else DEFAULT_CLOSED_DATES_PATH
+    )
+    closed_dates = _load_closed_dates(calendar_path, debug)
 
     latest_frame = _load_latest(latest_path, debug)
 
@@ -417,7 +601,21 @@ def upsert_from_latest(
         row = _build_history_row(latest_frame, target_date, debug)
         debug_filename = f"history_upsert_{target_date}.json"
 
+    calendar_coverage_end = max(closed_dates)
+    if target_date > calendar_coverage_end:
+        raise ValueError(
+            "KRX closed-date calendar coverage expired: "
+            f"{calendar_coverage_end.isoformat()}"
+        )
+
+    row = _apply_market_closed_policy(row, target_date, closed_dates, debug)
+
     history_frame = _load_history(history_path, debug)
+    history_frame = _normalize_closed_history_rows(
+        history_frame,
+        closed_dates,
+        debug,
+    )
     mask = history_frame["time_kst"].astype(str) == row["time_kst"]
     if mask.any():
         debug.log("기존 동일 날짜 행을 덮어씁니다", time_kst=row["time_kst"])
@@ -446,11 +644,22 @@ if __name__ == "__main__":
     parser.add_argument("--latest", default="out/latest.csv")
     parser.add_argument("--history", default="out/history.csv")
     parser.add_argument("--debug-dir", default=None)
+    parser.add_argument("--closed-dates", default=None)
     args = parser.parse_args()
 
-    report = upsert_from_latest(args.latest, args.history, debug_dir=args.debug_dir)
+    report = upsert_from_latest(
+        args.latest,
+        args.history,
+        debug_dir=args.debug_dir,
+        closed_dates_path=args.closed_dates,
+    )
     print(json.dumps({"steps": report.steps, "field_status": report.field_status}, ensure_ascii=False))
 
 
-__all__ = ["upsert_from_latest", "HISTORY_COLUMNS", "LATEST_TO_HISTORY", "DebugReport"]
-
+__all__ = [
+    "upsert_from_latest",
+    "HISTORY_COLUMNS",
+    "LATEST_TO_HISTORY",
+    "MARKET_COLUMNS",
+    "DebugReport",
+]
