@@ -1,34 +1,34 @@
 ts_kst,asset,key,value,unit,window,change_abs,change_pct,source,quality,url,notes
-2026-09-02 09:23,KOSPI,idx,6632.089844,pt,1D,-187.930176,-0.027556,YahooFinance(^KS11),secondary,https://finance.yahoo.com/quote/^KS11,
-2026-09-02 09:23,KOSDAQ,idx,798.23999,pt,1D,-36.049988,-0.04321,YahooFinance(^KQ11),secondary,https://finance.yahoo.com/quote/^KQ11,
-2026-09-02 09:23,KOSPI,advance,369.0,issues,1D,,,naver,secondary,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
-2026-09-02 09:23,KOSPI,decline,1763.0,issues,1D,,,naver,secondary,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
-2026-09-02 09:23,KOSPI,unchanged,353.0,issues,1D,,,naver,secondary,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
-2026-09-02 09:23,KOSDAQ,advance,335.0,issues,1D,,,naver,secondary,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
-2026-09-02 09:23,KOSDAQ,decline,1274.0,issues,1D,,,naver,secondary,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
-2026-09-02 09:23,KOSDAQ,unchanged,213.0,issues,1D,,,naver,secondary,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
-2026-09-02 09:23,KOSPI,limit_up,0.0,issues,1D,,,naver,secondary,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
-2026-09-02 09:23,KOSPI,limit_down,0.0,issues,1D,,,naver,secondary,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
-2026-09-02 09:23,KOSPI,trin,,ratio,1D,,,KIS,primary,,"range_violation:https://finance.naver.com/sise/sise_market_sum.naver,0.1-10"
-2026-09-02 09:23,KOSPI,trading_value,4945306312207.0,KRW,1D,,,naver,secondary,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
-2026-09-02 09:23,K200,hv30,0.865209,vol,30D,,,YahooFinance(^KS200),secondary,https://finance.yahoo.com/quote/^KS200,
-2026-09-02 09:23,ES,basis,0.00174,ratio,1D,,,YahooFinance(ES=F),secondary,https://finance.yahoo.com/quote/ES=F,
-2026-09-02 09:23,NQ,basis,0.001918,ratio,1D,,,YahooFinance(NQ=F),secondary,https://finance.yahoo.com/quote/NQ=F,
-2026-09-02 09:23,SOX,ret_1w,-0.011779,return,1W,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
-2026-09-02 09:23,SOX,ret_1m,-0.001986,return,1M,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
-2026-09-02 09:23,USD/KRW,spot,1370.180054,KRW,1D,3.560059,0.002605,YahooFinance(KRW=X),secondary,https://finance.yahoo.com/quote/KRW=X,
-2026-09-02 09:23,DXY,idx,99.698997,idx,1D,,,yfinance,secondary,https://finance.yahoo.com/quote/DX-Y.NYB,fallback:yfinance:DX-Y.NYB
-2026-09-02 09:23,UST2Y,yield,4.39,pct,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
-2026-09-02 09:23,UST10Y,yield,4.79,pct,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
-2026-09-02 09:23,KR3Y,yield,3.878,pct,1D,0.04,0.010422,BOK_ECOS,secondary,https://ecos.bok.or.kr/,fallback:ecos:817Y002:010200000
-2026-09-02 09:23,KR10Y,yield,4.371,pct,1D,0.058,0.013448,BOK_ECOS,secondary,https://ecos.bok.or.kr/,fallback:ecos:817Y002:010210000
-2026-09-02 09:23,TIPS10Y,yield,2.44,pct,1D,,,treasury_real,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_real_yield_curve&field_tdr_date_value=2026,fallback:treasury_real
-2026-09-02 09:23,2s10s_US,spread,40.0,bp,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026 https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,ok
-2026-09-02 09:23,2s10s_KR,spread,49.3,bp,1D,,,BOK_ECOS,secondary,https://ecos.bok.or.kr/ https://ecos.bok.or.kr/,ok
-2026-09-02 09:23,WTI,spot,90.949997,USD,1D,5.189995,0.060518,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/CL=F,
-2026-09-02 09:23,Brent,spot,95.389999,USD,1D,4.900002,0.05415,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BZ=F,
-2026-09-02 09:23,Gold,spot,4372.799805,USD,1D,-58.300293,-0.013157,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/GC=F,
-2026-09-02 09:23,Copper,spot,6.544,USD,1D,-0.0495,-0.007507,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/HG=F,
-2026-09-02 09:23,BTC,spot,77224.992188,USD,1D,-1323.640625,-0.016851,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
-2026-09-02 09:23,BTC,corr20,0.012079,corr,20D,,,finance.yahoo.com+YahooFinance(NQ=F),secondary,https://finance.yahoo.com/quote/BTC-USD https://finance.yahoo.com/quote/NQ=F,
-2026-09-02 09:30:50,VIX,spot,16.34000015258789,pt,1D,,,yfinance,secondary,https://finance.yahoo.com/quote/%5EVIX,
+2026-09-02 21:20,KOSPI,idx,6562.720215,pt,EOD,-273.07959,-0.039948,YahooFinance(^KS11),final,https://finance.yahoo.com/quote/^KS11,
+2026-09-02 21:20,KOSDAQ,idx,803.97998,pt,EOD,-17.27002,-0.021029,YahooFinance(^KQ11),final,https://finance.yahoo.com/quote/^KQ11,
+2026-09-02 21:20,KOSPI,advance,380.0,issues,EOD,,,naver,final,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
+2026-09-02 21:20,KOSPI,decline,1944.0,issues,EOD,,,naver,final,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
+2026-09-02 21:20,KOSPI,unchanged,161.0,issues,EOD,,,naver,final,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
+2026-09-02 21:20,KOSDAQ,advance,359.0,issues,EOD,,,naver,final,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
+2026-09-02 21:20,KOSDAQ,decline,1298.0,issues,EOD,,,naver,final,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
+2026-09-02 21:20,KOSDAQ,unchanged,165.0,issues,EOD,,,naver,final,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
+2026-09-02 21:20,KOSPI,limit_up,1.0,issues,1D,,,naver,final,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
+2026-09-02 21:20,KOSPI,limit_down,0.0,issues,1D,,,naver,final,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
+2026-09-02 21:20,KOSPI,trin,,ratio,1D,,,KIS,final,,"range_violation:https://finance.naver.com/sise/sise_market_sum.naver,0.1-10"
+2026-09-02 21:20,KOSPI,trading_value,33014696174605.0,KRW,1D,,,naver,final,https://finance.naver.com/sise/sise_market_sum.naver,fallback:naver
+2026-09-02 21:20,K200,hv30,0.868608,vol,30D,,,YahooFinance(^KS200),final,https://finance.yahoo.com/quote/^KS200,
+2026-09-02 21:20,ES,basis,0.001838,ratio,1D,,,YahooFinance(ES=F),final,https://finance.yahoo.com/quote/ES=F,
+2026-09-02 21:20,NQ,basis,0.000207,ratio,1D,,,YahooFinance(NQ=F),final,https://finance.yahoo.com/quote/NQ=F,
+2026-09-02 21:20,SOX,ret_1w,-0.02584,return,1W,,,YahooFinance(^SOX),final,https://finance.yahoo.com/quote/^SOX,
+2026-09-02 21:20,SOX,ret_1m,-0.0124,return,1M,,,YahooFinance(^SOX),final,https://finance.yahoo.com/quote/^SOX,
+2026-09-02 21:20,USD/KRW,spot,1362.380005,KRW,EOD,-4.23999,-0.003103,YahooFinance(KRW=X),final,https://finance.yahoo.com/quote/KRW=X,
+2026-09-02 21:20,DXY,idx,99.752998,idx,EOD,,,yfinance,final,https://finance.yahoo.com/quote/DX-Y.NYB,fallback:yfinance:DX-Y.NYB
+2026-09-02 21:20,UST2Y,yield,4.39,pct,EOD,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
+2026-09-02 21:20,UST10Y,yield,4.79,pct,EOD,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
+2026-09-02 21:20,KR3Y,yield,3.93,pct,EOD,0.052,0.013409,BOK_ECOS,final,https://ecos.bok.or.kr/,fallback:ecos:817Y002:010200000
+2026-09-02 21:20,KR10Y,yield,4.418,pct,EOD,0.047,0.010753,BOK_ECOS,final,https://ecos.bok.or.kr/,fallback:ecos:817Y002:010210000
+2026-09-02 21:20,TIPS10Y,yield,2.44,pct,EOD,,,treasury_real,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_real_yield_curve&field_tdr_date_value=2026,fallback:treasury_real
+2026-09-02 21:20,2s10s_US,spread,40.0,bp,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026 https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,ok
+2026-09-02 21:20,2s10s_KR,spread,48.8,bp,1D,,,BOK_ECOS,final,https://ecos.bok.or.kr/ https://ecos.bok.or.kr/,ok
+2026-09-02 21:20,WTI,spot,89.449997,USD,1D,-0.770004,-0.008535,finance.yahoo.com,final,https://finance.yahoo.com/quote/CL=F,
+2026-09-02 21:20,Brent,spot,94.019997,USD,1D,-0.630005,-0.006656,finance.yahoo.com,final,https://finance.yahoo.com/quote/BZ=F,
+2026-09-02 21:20,Gold,spot,4379.100098,USD,1D,31.100098,0.007153,finance.yahoo.com,final,https://finance.yahoo.com/quote/GC=F,
+2026-09-02 21:20,Copper,spot,6.6055,USD,1D,0.099,0.015216,finance.yahoo.com,final,https://finance.yahoo.com/quote/HG=F,
+2026-09-02 21:20,BTC,spot,76972.578125,USD,1D,-431.046875,-0.005569,finance.yahoo.com,final,https://finance.yahoo.com/quote/BTC-USD,
+2026-09-02 21:20,BTC,corr20,0.189106,corr,20D,,,finance.yahoo.com+YahooFinance(NQ=F),final,https://finance.yahoo.com/quote/BTC-USD https://finance.yahoo.com/quote/NQ=F,
+2026-09-02 21:27:16,VIX,spot,16.1200008392334,pt,1D,,,yfinance,final,https://finance.yahoo.com/quote/%5EVIX,
