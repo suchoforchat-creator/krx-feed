@@ -1,34 +1,34 @@
 ts_kst,asset,key,value,unit,window,change_abs,change_pct,source,quality,url,notes
-2026-09-14 09:19,KOSPI,idx,6909.910156,pt,1D,-124.009766,-0.01763,YahooFinance(^KS11),secondary,https://finance.yahoo.com/quote/^KS11,
-2026-09-14 09:19,KOSDAQ,idx,820.640015,pt,1D,-16.279968,-0.019452,YahooFinance(^KQ11),secondary,https://finance.yahoo.com/quote/^KQ11,
-2026-09-14 09:19,KOSPI,advance,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
-2026-09-14 09:19,KOSPI,decline,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
-2026-09-14 09:19,KOSPI,unchanged,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
-2026-09-14 09:19,KOSDAQ,advance,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
-2026-09-14 09:19,KOSDAQ,decline,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
-2026-09-14 09:19,KOSDAQ,unchanged,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
-2026-09-14 09:19,KOSPI,limit_up,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
-2026-09-14 09:19,KOSPI,limit_down,,issues,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
-2026-09-14 09:19,KOSPI,trin,,ratio,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
-2026-09-14 09:19,KOSPI,trading_value,,KRW,1D,,,KIS,primary,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
-2026-09-14 09:19,K200,hv30,0.875699,vol,30D,,,YahooFinance(^KS200),secondary,https://finance.yahoo.com/quote/^KS200,
-2026-09-14 09:19,ES,basis,-0.004503,ratio,1D,,,YahooFinance(ES=F),secondary,https://finance.yahoo.com/quote/ES=F,
-2026-09-14 09:19,NQ,basis,-0.010153,ratio,1D,,,YahooFinance(NQ=F),secondary,https://finance.yahoo.com/quote/NQ=F,
-2026-09-14 09:19,SOX,ret_1w,0.041567,return,1W,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
-2026-09-14 09:19,SOX,ret_1m,-0.046404,return,1M,,,YahooFinance(^SOX),secondary,https://finance.yahoo.com/quote/^SOX,
-2026-09-14 09:19,USD/KRW,spot,1344.609985,KRW,1D,-3.560059,-0.002641,YahooFinance(KRW=X),secondary,https://finance.yahoo.com/quote/KRW=X,
-2026-09-14 09:19,DXY,idx,99.124001,idx,1D,,,yfinance,secondary,https://finance.yahoo.com/quote/DX-Y.NYB,fallback:yfinance:DX-Y.NYB
-2026-09-14 09:19,UST2Y,yield,4.63,pct,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
-2026-09-14 09:19,UST10Y,yield,4.96,pct,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
-2026-09-14 09:19,KR3Y,yield,4.014,pct,1D,0.084,0.021374,BOK_ECOS,secondary,https://ecos.bok.or.kr/,fallback:ecos:817Y002:010200000
-2026-09-14 09:19,KR10Y,yield,4.54,pct,1D,0.087,0.019537,BOK_ECOS,secondary,https://ecos.bok.or.kr/,fallback:ecos:817Y002:010210000
-2026-09-14 09:19,TIPS10Y,yield,2.6,pct,1D,,,treasury_real,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_real_yield_curve&field_tdr_date_value=2026,fallback:treasury_real
-2026-09-14 09:19,2s10s_US,spread,33.0,bp,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026 https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,ok
-2026-09-14 09:19,2s10s_KR,spread,52.6,bp,1D,,,BOK_ECOS,secondary,https://ecos.bok.or.kr/ https://ecos.bok.or.kr/,ok
-2026-09-14 09:19,WTI,spot,102.5,USD,1D,2.449997,0.024488,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/CL=F,
-2026-09-14 09:19,Brent,spot,107.449997,USD,1D,2.839996,0.027148,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BZ=F,
-2026-09-14 09:19,Gold,spot,4383.899902,USD,1D,17.699707,0.004054,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/GC=F,
-2026-09-14 09:19,Copper,spot,6.532,USD,1D,0.0625,0.009661,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/HG=F,
-2026-09-14 09:19,BTC,spot,76642.4375,USD,1D,-628.03125,-0.008128,finance.yahoo.com,secondary,https://finance.yahoo.com/quote/BTC-USD,
-2026-09-14 09:19,BTC,corr20,0.740305,corr,20D,,,finance.yahoo.com+YahooFinance(NQ=F),secondary,https://finance.yahoo.com/quote/BTC-USD https://finance.yahoo.com/quote/NQ=F,
-2026-09-14 09:25:53,VIX,spot,15.84000015258789,pt,1D,,,yfinance,secondary,https://finance.yahoo.com/quote/%5EVIX,
+2026-09-14 23:30,KOSPI,idx,6684.370117,pt,EOD,-225.540039,-0.03264,YahooFinance(^KS11),final,https://finance.yahoo.com/quote/^KS11,
+2026-09-14 23:30,KOSDAQ,idx,806.789978,pt,EOD,-13.850037,-0.016877,YahooFinance(^KQ11),final,https://finance.yahoo.com/quote/^KQ11,
+2026-09-14 23:30,KOSPI,advance,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
+2026-09-14 23:30,KOSPI,decline,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
+2026-09-14 23:30,KOSPI,unchanged,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
+2026-09-14 23:30,KOSDAQ,advance,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
+2026-09-14 23:30,KOSDAQ,decline,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
+2026-09-14 23:30,KOSDAQ,unchanged,,issues,EOD,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
+2026-09-14 23:30,KOSPI,limit_up,,issues,1D,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
+2026-09-14 23:30,KOSPI,limit_down,,issues,1D,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
+2026-09-14 23:30,KOSPI,trin,,ratio,1D,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
+2026-09-14 23:30,KOSPI,trading_value,,KRW,1D,,,KIS,final,,"parse_failed:https://data.krx.co.kr/comm/bldAttendant/getJsonData.cmd,Missing optional dependency 'html5lib'.  Use pip or conda to install html5lib."
+2026-09-14 23:30,K200,hv30,0.86309,vol,30D,,,YahooFinance(^KS200),final,https://finance.yahoo.com/quote/^KS200,
+2026-09-14 23:30,ES,basis,0.001538,ratio,1D,,,YahooFinance(ES=F),final,https://finance.yahoo.com/quote/ES=F,
+2026-09-14 23:30,NQ,basis,0.001706,ratio,1D,,,YahooFinance(NQ=F),final,https://finance.yahoo.com/quote/NQ=F,
+2026-09-14 23:30,SOX,ret_1w,-0.043763,return,1W,,,YahooFinance(^SOX),final,https://finance.yahoo.com/quote/^SOX,
+2026-09-14 23:30,SOX,ret_1m,-0.099094,return,1M,,,YahooFinance(^SOX),final,https://finance.yahoo.com/quote/^SOX,
+2026-09-14 23:30,USD/KRW,spot,1348.619995,KRW,EOD,0.449951,0.000334,YahooFinance(KRW=X),final,https://finance.yahoo.com/quote/KRW=X,
+2026-09-14 23:30,DXY,idx,99.689003,idx,EOD,,,yfinance,final,https://finance.yahoo.com/quote/DX-Y.NYB,fallback:yfinance:DX-Y.NYB
+2026-09-14 23:30,UST2Y,yield,4.63,pct,EOD,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
+2026-09-14 23:30,UST10Y,yield,4.96,pct,EOD,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,fallback:treasury
+2026-09-14 23:30,KR3Y,yield,4.025,pct,EOD,0.011,0.00274,BOK_ECOS,final,https://ecos.bok.or.kr/,fallback:ecos:817Y002:010200000
+2026-09-14 23:30,KR10Y,yield,4.536,pct,EOD,-0.004,-0.000881,BOK_ECOS,final,https://ecos.bok.or.kr/,fallback:ecos:817Y002:010210000
+2026-09-14 23:30,TIPS10Y,yield,2.6,pct,EOD,,,treasury_real,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_real_yield_curve&field_tdr_date_value=2026,fallback:treasury_real
+2026-09-14 23:30,2s10s_US,spread,33.0,bp,1D,,,treasury,final,https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026 https://home.treasury.gov/resource-center/data-chart-center/interest-rates/TextView?type=daily_treasury_yield_curve&field_tdr_date_value=2026,ok
+2026-09-14 23:30,2s10s_KR,spread,51.1,bp,1D,,,BOK_ECOS,final,https://ecos.bok.or.kr/ https://ecos.bok.or.kr/,ok
+2026-09-14 23:30,WTI,spot,104.459999,USD,1D,4.409996,0.044078,finance.yahoo.com,final,https://finance.yahoo.com/quote/CL=F,
+2026-09-14 23:30,Brent,spot,109.370003,USD,1D,4.760002,0.045502,finance.yahoo.com,final,https://finance.yahoo.com/quote/BZ=F,
+2026-09-14 23:30,Gold,spot,4305.5,USD,1D,-60.700195,-0.013902,finance.yahoo.com,final,https://finance.yahoo.com/quote/GC=F,
+2026-09-14 23:30,Copper,spot,6.358,USD,1D,-0.1115,-0.017235,finance.yahoo.com,final,https://finance.yahoo.com/quote/HG=F,
+2026-09-14 23:30,BTC,spot,78433.242188,USD,1D,1595.085938,0.020759,finance.yahoo.com,final,https://finance.yahoo.com/quote/BTC-USD,
+2026-09-14 23:30,BTC,corr20,0.56715,corr,20D,,,YahooFinance(NQ=F)+finance.yahoo.com,final,https://finance.yahoo.com/quote/BTC-USD https://finance.yahoo.com/quote/NQ=F,
+2026-09-14 23:36:51,VIX,spot,17.450000762939453,pt,1D,,,yfinance,final,https://finance.yahoo.com/quote/%5EVIX,
