@@ -18,7 +18,11 @@ from typing import Dict, Iterable, List, Tuple
 
 import pandas as pd
 import requests
-from pykrx import stock
+from ..optional_pykrx import LazyPykrx
+from ..session_dates import completed_session, is_session, previous_session
+from ..source_dates import bind_note
+
+stock = LazyPykrx("stock")
 
 from ..utils import KST
 from .krx_client import KrxClient
@@ -47,43 +51,17 @@ EXCLUDED_SECURITY_GROUPS = {"EF", "EN", "EW", "KO", "IF", "MF", "RT", "DR"}
 
 
 def _is_business_day(target: date) -> bool:
-    return target.weekday() < 5
+    return is_session(target)
 
 
 def _previous_business_day(target: date) -> date:
-    current = target - timedelta(days=1)
-    while not _is_business_day(current):
-        current -= timedelta(days=1)
-    return current
+    return previous_session(target)
 
 
 def determine_target(now: datetime) -> Tuple[date, bool]:
     now_kst = now.astimezone(KST)
-    current_date = now_kst.date()
-    current_time = now_kst.time()
-
-    morning_start = dtime(hour=7, minute=0)
-    morning_end = dtime(hour=8, minute=0)
-    evening_start = dtime(hour=16, minute=50)
-    evening_end = dtime(hour=17, minute=30)
-
-    should_wait = False
-
-    if morning_start <= current_time < morning_end:
-        target = _previous_business_day(current_date)
-    elif evening_start <= current_time <= evening_end:
-        if _is_business_day(current_date):
-            target = current_date
-            should_wait = True
-        else:
-            target = _previous_business_day(current_date)
-    else:
-        target = (
-            _previous_business_day(current_date)
-            if current_time < dtime(15, 30)
-            else current_date
-        )
-
+    target = completed_session(now_kst)
+    should_wait = target == now_kst.date() and dtime(16, 50) <= now_kst.time() <= dtime(17, 30)
     return target, should_wait
 
 
@@ -570,7 +548,7 @@ class KRXBreadthCollector:
                     "source": "naver",
                     "quality": "secondary",
                     "url": url,
-                    "notes": note,
+                    "notes": bind_note(note, None),
                 }
             )
 

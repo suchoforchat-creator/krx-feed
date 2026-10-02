@@ -20,6 +20,7 @@ import pandas as pd
 import requests
 
 from ..utils import KST
+from ..source_dates import bind_note, quote_day
 
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,7 @@ class DXYCollector:
         # 모든 요청이 동일한 헤더를 사용하도록 기본 헤더를 설정한다.
         self._session.headers.update(DEFAULT_HEADERS)
         self._timeout = timeout
+        self._source_dates = {}
 
     # ------------------------------------------------------------------
     # 디버깅 도우미: context와 추가 정보를 함께 로그로 남긴다.
@@ -91,7 +93,9 @@ class DXYCollector:
         note: str,
         target: date,
     ) -> DXYFrame:
-        ts = datetime.combine(target, dtime(hour=17, minute=0), tzinfo=KST)
+        day = self._source_dates.get(source)
+        note = bind_note(note, day)
+        ts = datetime.combine(day, dtime(), tzinfo=KST) if day else datetime.now(KST)
         if value is None:
             return DXYFrame(frame=pd.DataFrame(), note=note)
         if not 70 <= float(value) <= 130:
@@ -139,6 +143,8 @@ class DXYCollector:
                 try:
                     value = float(row[close_index].replace(",", ""))
                     self._debug("stooq_success", url=url, value=value)
+                    date_index = lowered.index("date") if "date" in lowered else None
+                    self._source_dates["stooq"] = quote_day(row[date_index]) if date_index is not None and len(row) > date_index else None
                     return value, url
                 except ValueError:
                     self._debug("stooq_value_error", url=url, raw=row[close_index])
@@ -263,11 +269,13 @@ class DXYCollector:
             self._debug("yfinance_close_missing")
             return None
 
+        self._source_dates["yfinance"] = quote_day(closes.index[-1])
         value = float(closes.iloc[-1])
         self._debug("yfinance_success", value=value)
         return value
 
     def collect(self, target: date) -> Tuple[pd.DataFrame, Dict[str, str]]:
+        self._source_dates = {}
         notes: Dict[str, str] = {}
         failure_chain: list[str] = []
 
