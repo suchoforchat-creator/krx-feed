@@ -11,3 +11,4 @@ lxml
 yfinance
 pykrx
 pyarrow
+html5lib
