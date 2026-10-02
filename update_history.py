@@ -17,6 +17,8 @@ from typing import Dict, Iterable, List, Optional, Tuple
 
 import numpy as np
 import pandas as pd
+from src.source_dates import note_date
+from src.session_dates import completed_session
 
 # ---------------------------------------------------------------------------
 # 상수 정의 영역
@@ -544,6 +546,8 @@ def upsert_from_latest(
     now: Optional[datetime] = None,
     debug_dir: str | Path | None = None,
     closed_dates_path: str | Path | None = None,
+    target_date: date | None = None,
+    require_source_dates: bool = False,
 ) -> DebugReport:
     """latest.csv를 읽어 history.csv에 1행을 업서트합니다.
 
@@ -567,6 +571,12 @@ def upsert_from_latest(
         전체 처리 과정을 담은 디버그 리포트
     """
 
+    if require_source_dates:
+        return _upsert_verified(latest_path, history_path, now=now,
+                                target_date=target_date, debug_dir=debug_dir,
+                                closed_dates_path=closed_dates_path)
+    # Legacy mode remains only for old-format fixtures/migrations; the pipeline
+    # and CLI use verified-source mode. It is not used to repair past rows.
     debug = DebugReport()
     latest_path = Path(latest_path)
     history_path = Path(history_path)
@@ -636,6 +646,109 @@ def upsert_from_latest(
     return debug
 
 
+def _upsert_verified(latest_path, history_path, *, now=None, target_date=None,
+                     debug_dir=None, closed_dates_path=None):
+    """Publish one completed KRX session without relabelling any quote date."""
+    debug = DebugReport()
+    now = now.astimezone(KST) if now else datetime.now(KST)
+    calendar = _load_closed_dates(Path(closed_dates_path or DEFAULT_CLOSED_DATES_PATH), debug)
+    target = target_date or completed_session(now, closed=set(calendar))
+    if not isinstance(target, date) or isinstance(target, datetime):
+        raise ValueError("EXACT_TARGET_DATE_REQUIRED")
+    if target > completed_session(now, closed=set(calendar)):
+        raise ValueError("FUTURE_OR_UNCLOSED_SESSION_REJECTED")
+    if target.weekday() >= 5 or target in calendar:
+        raise ValueError("CLOSED_SESSION_TARGET_REJECTED")
+    frame = _load_latest(Path(latest_path), debug)
+    if frame.empty:
+        raise ValueError("SOURCE_DATE_NOT_READY:empty_latest")
+    if "notes" not in frame:
+        raise ValueError("SOURCE_DATE_NOT_READY:notes_missing")
+    frame["source_day"] = frame["notes"].map(note_date)
+    frame = frame.loc[frame["source_day"].map(lambda d: d is not None and d <= target)].copy()
+    # These are existing Step1 core-market requirements, not a new optional-data gate.
+    for asset in ("KOSPI", "KOSDAQ"):
+        core = frame.loc[(frame["asset"] == asset) & (frame["key"] == "idx")
+                         & (frame["source_day"] == target), "value"]
+        if not pd.to_numeric(core, errors="coerce").gt(0).any():
+            raise ValueError("SOURCE_DATE_NOT_READY:" + asset)
+    # A KRX session is a bucket, not the claimed quote date of every global series.
+    # Core indices/breadth require that session; macro series may be prior-date
+    # references. Date provenance and actual observation time stay explicit.
+    frame = frame.loc[~frame["asset"].isin(["KOSPI", "KOSDAQ", "K200"])
+                      | (frame["source_day"] == target)].copy()
+    frame = frame.loc[frame["source_day"] == frame.groupby(["asset", "key"])["source_day"].transform("max")].copy()
+    frame["date_kst"] = target
+    row = _build_history_row(frame, target, debug)
+    metric_dates = {}
+    prior_reference = []
+    for (asset, key), column in LATEST_TO_HISTORY.items():
+        if not str(row[column]).strip():
+            continue
+        record, _ = _select_latest_record(frame, asset, key, target, debug)
+        if record is not None:
+            metric_dates[column] = record["source_day"].isoformat()
+            if record["source_day"] < target:
+                prior_reference.append(column)
+    if prior_reference:
+        row["quality"] = "secondary"
+        debug.log("prior-date macro references retained in session bucket",
+                  columns="|".join(prior_reference), point_in_time_availability="not_proven")
+    path = Path(history_path)
+    history = _load_history(path, debug)
+    mask = history["time_kst"].astype(str) == row["time_kst"]
+    if mask.sum() > 1:
+        raise ValueError("DUPLICATE_HISTORY_TARGET")
+    if mask.any():
+        old = history.loc[mask].iloc[0]
+        retained = []
+        for column in HISTORY_COLUMNS:
+            if column in {"time_kst", "src_tag", "quality"}:
+                continue
+            if not str(row[column]).strip() and str(old[column]).strip():
+                row[column] = str(old[column])
+                retained.append(column)
+        if retained:
+            row["quality"] = "secondary"
+            old_tokens = str(old["src_tag"]).split("|")
+            legacy_unverified = []
+            for column in retained:
+                tokens = [t.split("=", 1)[1] for t in old_tokens
+                          if t.startswith("metric_date." + column + "=")]
+                prior_day = None
+                if "history_bucket_source_dates_v1" in old_tokens and len(tokens) == 1:
+                    try:
+                        prior_day = date.fromisoformat(tokens[0])
+                    except ValueError:
+                        pass
+                if prior_day is not None and prior_day <= target:
+                    metric_dates[column] = prior_day.isoformat()
+                else:
+                    metric_dates[column] = "UNKNOWN"
+                    legacy_unverified.append(column)
+            _append_src_tag(row, "retained_same_date_values=" + ",".join(retained))
+            if legacy_unverified:
+                _append_src_tag(row, "retained_legacy_unverified=" + ",".join(legacy_unverified))
+            debug.log("same-date values retained without provenance promotion",
+                      columns="|".join(retained), legacy_unverified="|".join(legacy_unverified))
+        history = history.loc[~mask].copy()
+    _append_src_tag(row, "history_bucket_source_dates_v1")
+    _append_src_tag(row, "observation_time=" + now.isoformat())
+    for column, day_text in sorted(metric_dates.items()):
+        _append_src_tag(row, "metric_date." + column + "=" + day_text)
+    if prior_reference:
+        _append_src_tag(row, "prior_date_reference=" + ",".join(prior_reference))
+    # Do not normalize, relabel, backfill or manufacture any historical row.
+    history = pd.concat([history, pd.DataFrame([row])], ignore_index=True)
+    history = history[HISTORY_COLUMNS].fillna("").sort_values("time_kst").reset_index(drop=True)
+    _atomic_write(history, path)
+    debug.log("source-date-bound session bucket published", target_date=target,
+              observation_time=now.isoformat())
+    if debug_dir:
+        debug.dump(Path(debug_dir) / f"history_upsert_{target}.json")
+    return debug
+
+
 if __name__ == "__main__":
     # CLI로 직접 실행할 때 사용할 수 있는 편의 엔트리포인트입니다.
     import argparse
@@ -645,6 +758,7 @@ if __name__ == "__main__":
     parser.add_argument("--history", default="out/history.csv")
     parser.add_argument("--debug-dir", default=None)
     parser.add_argument("--closed-dates", default=None)
+    parser.add_argument("--target-date", type=date.fromisoformat, default=None)
     args = parser.parse_args()
 
     report = upsert_from_latest(
@@ -652,6 +766,8 @@ if __name__ == "__main__":
         args.history,
         debug_dir=args.debug_dir,
         closed_dates_path=args.closed_dates,
+        target_date=args.target_date,
+        require_source_dates=True,
     )
     print(json.dumps({"steps": report.steps, "field_status": report.field_status}, ensure_ascii=False))
 

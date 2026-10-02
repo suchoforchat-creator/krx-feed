@@ -14,6 +14,7 @@ import yfinance as yf
 from bs4 import BeautifulSoup
 
 from ..utils import kst_now
+from ..source_dates import bind_note
 
 logger = logging.getLogger(__name__)
 
@@ -137,6 +138,7 @@ def _from_html(asset: str, url: str, selectors: Tuple[str, ...]) -> pd.DataFrame
     frame = pd.DataFrame(
         {
             "ts_kst": [ts],
+            "notes": [bind_note("undated_html_reference", None)],
             "asset": [asset],
             "field": ["close"],
             "value": [value],
@@ -175,6 +177,7 @@ def fetch(periods: int = 120) -> Dict[str, FetchResult]:
                 pd.DataFrame(
                     {
                         "ts_kst": idx,
+                        "source_date": [pd.Timestamp(item).date() for item in series.index],
                         "asset": [asset] * length,
                         "field": ["close"] * length,
                         "value": series.to_numpy(),

@@ -11,7 +11,10 @@ from typing import Any, Dict, Iterable, Optional
 import pandas as pd
 import requests
 import yfinance as yf
-from pykrx import bond, stock
+from ..optional_pykrx import LazyPykrx
+
+bond = LazyPykrx("bond")
+stock = LazyPykrx("stock")
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 from ..utils import KST, kst_now
@@ -205,7 +208,8 @@ class KISClient:
         parsed = parsed.dt.tz_localize("Asia/Seoul", nonexistent="shift_forward", ambiguous="NaT")
 
         values = pd.to_numeric(value_series, errors="coerce")
-        frame = pd.DataFrame({"ts_kst": parsed, "value": values})
+        frame = pd.DataFrame({"ts_kst": parsed, "value": values,
+                              "source_date": pd.to_datetime(date_series.astype(str).str.replace("-", ""), format="%Y%m%d", errors="coerce").dt.date})
         frame = frame.dropna(subset=["ts_kst", "value"]).drop_duplicates(subset=["ts_kst"])
         frame = frame.sort_values("ts_kst").tail(periods)
         frame["source"] = meta.get("source", "KIS")
@@ -282,6 +286,7 @@ class KISClient:
         length = len(close)
         data_dict = {
             "ts_kst": list(idx),
+            "source_date": [pd.Timestamp(item).date() for item in close.index],
             "value": close.to_numpy().reshape(length),
             "source": [f"YahooFinance({symbol})"] * length,
             "quality": ["secondary"] * length,

@@ -4,7 +4,7 @@ import argparse
 import json
 import re
 import sys
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -23,53 +23,19 @@ from src.sources.us_yields import USTYieldCollector
 from src.storage import append_log, cleanup_daily, write_daily, write_latest, write_raw
 from src.universe import load_universe
 from src.utils import KST, load_yaml
+from src.session_dates import completed_session
+from src.source_dates import bind_note, quote_day
+from src.failure_diagnostic import write_failure
 
 
 def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
-    """1700 배치에서 history 업서트 대상 항목만 window="EOD"로 표기합니다."""
-
-    # 초심자 팁: DataFrame은 항상 복사본을 만들어 수정하면 원본 데이터 손상을 방지할 수 있습니다.
+    """Use the same mapping as history; never override it with stale aliases."""
     updated = frame.copy()
-
-    # history.csv에서 요구하는 (asset, key) 목록입니다.
-    eod_pairs = {
-        ("KOSPI", "idx"),
-        ("KOSDAQ", "idx"),
-        ("KOSPI", "advance"),
-        ("KOSPI", "decline"),
-        ("KOSPI", "unchanged"),
-        ("KOSDAQ", "advance"),
-        ("KOSDAQ", "decline"),
-        ("KOSDAQ", "unchanged"),
-        ("USD/KRW", "spot"),
-        ("DXY", "idx"),
-        ("UST2Y", "yield"),
-        ("UST10Y", "yield"),
-        ("KR3Y", "yield"),
-        ("KR10Y", "yield"),
-        ("TIPS10Y", "yield"),
-        # 원자재·암호화폐 레코드는 compute 모듈에서 key="spot"으로 생성됩니다.
-        ("WTI", "spot"),
-        ("Brent", "spot"),
-        ("Gold", "spot"),
-        ("Copper", "spot"),
-        ("BTC", "spot"),
-        # compute.py는 K200으로 변동성을 생성하므로 동일한 자산명을 사용한다.
-        ("K200", "hv30"),
-        ("VIX", "spot"),
-    }
-
-    # window 컬럼이 없으면 빈 문자열로 채워 디버깅 시 결측 여부를 쉽게 확인합니다.
-    if "window" not in updated.columns:
+    if "window" not in updated:
         updated["window"] = ""
-    else:
-        updated["window"] = updated["window"].fillna("")
-
-    # (asset, key) 튜플이 EOD 대상인지 판별해 window 값을 "EOD"로 덮어씁니다.
-    pairs = list(zip(updated.get("asset", ""), updated.get("key", "")))
-    mask = [pair in eod_pairs for pair in pairs]
+    mask = [(a, k) in update_history.LATEST_TO_HISTORY
+            for a, k in zip(updated.get("asset", []), updated.get("key", []))]
     updated.loc[mask, "window"] = "EOD"
-
     return updated
 
 
@@ -137,11 +103,22 @@ def _rec(
     quality: str = "",
     url: str = "",
     notes: str = "",
+    source_date: date | None = None,
 ) -> Dict[str, object]:
     """latest.csv 한 행을 쉽게 만들기 위한 도우미."""
-
+    observed = datetime.now(KST)
+    notes = bind_note(notes, source_date)
+    if source_date is None:
+        notes += ";freshness=SOURCE_DATE_UNKNOWN"
+    else:
+        age = (observed.date() - source_date).days
+        notes += ";source_age_calendar_days=" + str(age)
+        notes += ";freshness=" + ("PRIOR_DATE_REFERENCE" if age > 0 else "SOURCE_DATE_MATCHES_COLLECTION_DATE")
+        if age < 0:
+            value = None
+            notes += ";future_source_date_rejected"
     return {
-        "ts_kst": _now_kst_str(),
+        "ts_kst": observed.strftime("%Y-%m-%d %H:%M:%S"),
         "asset": asset,
         "key": key,
         "value": value,
@@ -169,7 +146,8 @@ def fetch_vix() -> Dict[str, object]:
         hist = ticker.history(period="2d", interval="1d")
 
         if not hist.empty and "Close" in hist.columns:
-            value = float(hist["Close"].iloc[-1])
+            closes = pd.to_numeric(hist["Close"], errors="coerce").dropna()
+            value = float(closes.iloc[-1])
             if 8 <= value <= 150:
                 return _rec(
                     "VIX",
@@ -179,6 +157,7 @@ def fetch_vix() -> Dict[str, object]:
                     source="yfinance",
                     quality="secondary",
                     url="https://finance.yahoo.com/quote/%5EVIX",
+                    source_date=quote_day(closes.index[-1]),
                 )
             _fail(tried, "yfinance", f"out_of_range:{value}")
         else:
@@ -263,7 +242,8 @@ def fetch_vix() -> Dict[str, object]:
         if close_col:
             value = float(df.tail(1)[close_col].iloc[0])
             if 8 <= value <= 150:
-                return _rec("VIX", "spot", value, "pt", source="stooq", quality="secondary", url=url)
+                return _rec("VIX", "spot", value, "pt", source="stooq", quality="secondary", url=url,
+                            source_date=quote_day(df.tail(1)[columns["date"]].iloc[0]) if "date" in columns else None)
             _fail(tried, "stooq", f"out_of_range:{value}")
         else:
             _fail(tried, "stooq", f"no_close_col:{list(df.columns)[:5]}")
@@ -319,14 +299,14 @@ def fetch_vix() -> Dict[str, object]:
     return _rec("VIX", "spot", None, "pt", source="all_sources_failed", notes=note, url=urls)
 
 
-def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict[str, str], Dict[str, list[str]]]:
+def collect_raw(config: Dict, phase: str, *, run_ts=None, target_date=None) -> Tuple[Dict[str, pd.DataFrame], Dict[str, str], Dict[str, list[str]]]:
     client = KISClient(config)
     universe = load_universe(config)
     raw_frames: Dict[str, pd.DataFrame] = {}
     failure_notes: Dict[str, str] = {}
     metrics: Dict[str, list[str]] = {}
-    run_ts = datetime.now(KST)
-    target_date, _ = determine_target(run_ts)
+    run_ts = run_ts or datetime.now(KST)
+    target_date = target_date or completed_session(run_ts, phase)
     breadth_collector = KRXBreadthCollector()
     rate_collector = KRXKorRates()
     ust_collector = USTYieldCollector()
@@ -395,51 +375,6 @@ def collect_raw(config: Dict, phase: str) -> Tuple[Dict[str, pd.DataFrame], Dict
     return raw_frames, failure_notes, metrics
 
 
-def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
-    """필요한 자산/키에 window="EOD" 태그를 붙여 history 업서트 대상임을 표시합니다."""
-
-    if frame.empty:
-        # 비어 있는 경우 그대로 반환하면 이후 로직이 자연스럽게 넘어갑니다.
-        return frame
-
-    required_columns = {"asset", "key", "window"}
-    missing = required_columns.difference(frame.columns)
-    if missing:
-        # 필수 컬럼이 없다면 디버깅을 위해 그대로 반환하여 후속 단계에서 KeyError가 발생하도록 둡니다.
-        return frame
-
-    frame = frame.copy()
-
-    eod_keys = {
-        ("KOSPI", "idx"),
-        ("KOSDAQ", "idx"),
-        ("KOSPI", "advance"),
-        ("KOSPI", "decline"),
-        ("KOSPI", "unchanged"),
-        ("KOSDAQ", "advance"),
-        ("KOSDAQ", "decline"),
-        ("KOSDAQ", "unchanged"),
-        ("USD/KRW", "spot"),
-        ("DXY", "idx"),
-        ("UST2Y", "yield"),
-        ("UST10Y", "yield"),
-        ("KR3Y", "yield"),
-        ("KR10Y", "yield"),
-        ("TIPS10Y", "yield"),
-        ("WTI", "price"),
-        ("Brent", "curve_M1"),
-        ("Gold", "price"),
-        ("Copper", "price"),
-        ("BTC", "price"),
-        ("KOSPI200", "hv30"),
-    }
-
-    # (asset, key) 튜플을 만들어 빠르게 필터링합니다.
-    mask = frame[["asset", "key"]].apply(lambda row: (row["asset"], row["key"]) in eod_keys, axis=1)
-    frame.loc[mask, "window"] = "EOD"
-    return frame
-
-
 def main() -> int:
     args = parse_args()
     config = load_yaml(Path("conf.yml"))
@@ -448,7 +383,8 @@ def main() -> int:
     append_log(ts, "start", {"phase": args.phase})
 
     try:
-        raw_frames, notes, metrics = collect_raw(config, args.phase)
+        target_date = completed_session(ts, args.phase)
+        raw_frames, notes, metrics = collect_raw(config, args.phase, run_ts=ts, target_date=target_date)
         append_log(ts, "raw", {"assets": list(raw_frames)})
         if metrics.get("symbol_not_found"):
             append_log(ts, "monitor", {"symbol_not_found": metrics["symbol_not_found"]})
@@ -489,6 +425,9 @@ def main() -> int:
                 latest_path,
                 Path("out") / "history.csv",
                 debug_dir=debug_dir,
+                now=ts,
+                target_date=target_date,
+                require_source_dates=True,
             )
             print(
                 "[history-upsert]",
@@ -526,7 +465,9 @@ def main() -> int:
         append_log(ts, "success", {"phase": args.phase})
         return 0
     except Exception as exc:  # pragma: no cover
-        append_log(ts, "failure", {"error": str(exc)})
+        safe_phase = args.phase if args.phase in {"0730", "1700", "EOD"} else "unknown"
+        evidence = write_failure(Path("debug") / safe_phase / "pipeline_failure.json", exc, "pipeline_main")
+        append_log(ts, "failure", {"phase": safe_phase, "error_type": evidence["exception_type"]})
         return 1
 
 

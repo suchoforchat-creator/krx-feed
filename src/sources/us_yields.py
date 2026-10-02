@@ -25,6 +25,7 @@ import pandas as pd
 import requests
 
 from ..utils import KST
+from ..source_dates import bind_note, quote_day
 
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,7 @@ class USTYieldCollector:
         self._session = session or requests.Session()
         self._session.headers.update(DEFAULT_HEADERS)
         self._timeout = timeout
+        self._source_dates = {}
 
     # ------------------------------------------------------------------
     # 공통 디버그 로거. context 이름과 키워드 인수를 찍어준다.
@@ -119,6 +121,7 @@ class USTYieldCollector:
                 continue
             if 0 < value < 10:
                 self._debug("fred_success", series=series_id, value=value)
+                self._source_dates[("fred", series_id)] = quote_day(row.get("DATE") or row.get("observation_date"))
                 return value, url
             self._debug("fred_range_violation", series=series_id, value=value)
         return None, None
@@ -167,7 +170,9 @@ class USTYieldCollector:
                     except (TypeError, ValueError):
                         continue
                     if 0 < value < 10:
-                        result.setdefault(asset, value)
+                        if asset not in result:
+                            result[asset] = value
+                            self._source_dates[("treasury", asset)] = day
                 if result:
                     self._debug(
                         "treasury_success",
@@ -225,6 +230,7 @@ class USTYieldCollector:
                 # TIPS는 음수가 나올 수 있으므로 -10~10 범위를 허용한다.
                 if -10 < value < 10:
                     result["TIPS10Y"] = value
+                    self._source_dates[("treasury_real", "TIPS10Y")] = day
                     self._debug("treasury_real_success", url=url, days_back=offset, value=value)
                     return result
                 self._debug("treasury_real_range_violation", value=value)
@@ -282,7 +288,10 @@ class USTYieldCollector:
         note: str,
         target: date,
     ) -> YieldFrame:
-        ts = datetime.combine(target, dtime(hour=17, minute=0), tzinfo=KST)
+        date_key = self.SERIES_IDS[asset] if source == "fred" else asset
+        day = self._source_dates.get((source, date_key))
+        note = bind_note(note, day)
+        ts = datetime.combine(day, dtime(), tzinfo=KST) if day else datetime.now(KST)
         if value is None:
             return YieldFrame(frame=pd.DataFrame(), note=note)
         if not 0 < float(value) < 10:
@@ -312,6 +321,7 @@ class USTYieldCollector:
     # 외부 호출 진입점.
     # ------------------------------------------------------------------
     def collect(self, target: date) -> Tuple[Dict[str, pd.DataFrame], Dict[str, str]]:
+        self._source_dates = {}
         frames: Dict[str, pd.DataFrame] = {}
         notes: Dict[str, str] = {}
 

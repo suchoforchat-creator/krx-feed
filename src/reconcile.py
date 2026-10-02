@@ -62,5 +62,8 @@ def reconcile(records: List[Dict], daily_path: Path) -> List[Dict]:
                 diff = abs(float(new_value) - float(old_value))
                 threshold = _threshold_for(row)
                 if diff >= threshold:
-                    row["notes"] = "revised"
+                    parts = [p for p in str(row.get("notes", "") or "").split(";") if p]
+                    if "revised" not in parts:
+                        parts.append("revised")
+                    row["notes"] = ";".join(parts)
     return records

@@ -20,6 +20,8 @@ from .utils import (
     ts_string,
 )
 
+from .source_dates import bind_note, latest_source_date
+
 logger = logging.getLogger(__name__)
 
 
@@ -184,7 +186,10 @@ def _series_from_raw(raw: Dict[str, pd.DataFrame], asset: str, field: str) -> Se
     subset["ts_kst"] = pd.to_datetime(subset["ts_kst"])
     subset.sort_values("ts_kst", inplace=True)
     subset["value"] = pd.to_numeric(subset["value"], errors="coerce")
-    series = subset.set_index("ts_kst")["value"].dropna()
+    subset = subset.dropna(subset=["value", "ts_kst"])
+    if subset.empty:
+        return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
+    series = subset.set_index("ts_kst")["value"]
     source = str(subset["source"].iloc[-1]) if "source" in subset else ""
     quality = str(subset["quality"].iloc[-1]) if "quality" in subset else "primary"
     url = str(subset["url"].iloc[-1]) if "url" in subset else ""
@@ -720,6 +725,39 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
         )
     )
 
+    # ts_kst is observation time for downstream freshness checks. The date of
+    # the number itself is separate and survives serialization in notes.
+    dependencies = {
+        ("ES", "basis"): [("ES", "close"), ("SPX", "close")],
+        ("NQ", "basis"): [("NQ", "close"), ("NDX", "close")],
+        ("2s10s_US", "spread"): [("UST10Y", "yield"), ("UST2Y", "yield")],
+        ("2s10s_KR", "spread"): [("KR10Y", "yield"), ("KR3Y", "yield")],
+        ("BTC", "corr20"): [("BTC", "close"),
+                           ("NDX" if "fallback:ndx" in corr_note else "NQ", "close")],
+    }
+    close_keys = {"idx", "spot", "hv30", "ret_1w", "ret_1m"}
+    for row in records:
+        asset, key = row["asset"], row["key"]
+        field = "close" if key in close_keys and asset != "DXY" else key
+        legs = dependencies.get((asset, key), [(asset, field)])
+        dates = [latest_source_date(raw.get(a), f) for a, f in legs]
+        known = all(day is not None for day in dates)
+        same_date = known and len(set(dates)) == 1
+        day = dates[0] if same_date else None
+        row["notes"] = bind_note(row.get("notes", ""), day)
+        if day is None:
+            row["notes"] += ";freshness=SOURCE_DATE_UNKNOWN"
+        else:
+            age = (ts.date() - day).days
+            row["notes"] += ";source_age_calendar_days=" + str(age)
+            row["notes"] += ";freshness=" + ("PRIOR_DATE_REFERENCE" if age > 0 else "SOURCE_DATE_MATCHES_COLLECTION_DATE")
+        if known and not same_date:
+            row["notes"] += ";source_dates_mixed=" + "|".join(str(d) for d in dates)
+        if any(d is not None and d > ts.date() for d in dates):
+            row["value"] = None
+            row["change_abs"] = None
+            row["change_pct"] = None
+            row["notes"] += ";future_source_date_rejected"
     return records
 
 

@@ -25,6 +25,7 @@ import pandas as pd
 import requests
 
 from ..utils import KST
+from ..source_dates import bind_note, quote_day
 from ..kis.client import KISClient
 from .krx_client import KrxClient
 
@@ -168,6 +169,7 @@ class KRXKorRates:
                 "value": float(value),
                 "prev": float(prev_value) if prev_value is not None else None,
                 "prev_date": prev_date if prev_value is not None else None,
+                "source_date": target,
                 "source": "krx",
                 "quality": "final",
                 "url": KRX_URL,
@@ -350,6 +352,7 @@ class KRXKorRates:
                 return (
                     {
                         "value": current,
+                        "source_date": valid.iloc[-1]["TIME"].date(),
                         "prev": prev,
                         "prev_date": prev_date,
                         "source": "BOK_ECOS",
@@ -501,7 +504,7 @@ class KRXKorRates:
                 try:
                     dates.append(datetime.strptime(cols[0], "%Y.%m.%d").date())
                 except Exception:
-                    dates.append(target)
+                    dates.append(None)
 
             # HTML 구조가 또 변하면 pandas.read_html로 한 번 더 파싱을 시도한다.
             if not values:
@@ -521,7 +524,7 @@ class KRXKorRates:
                         try:
                             dates.append(pd.to_datetime(rec.iloc[0], errors="raise").date())
                         except Exception:
-                            dates.append(target)
+                            dates.append(None)
             # 마지막 보강: HTML 구조가 크게 바뀌는 경우를 위해 전체 본문에서 날짜/금리 쌍을 파싱한다.
             if not values:
                 raw_pairs = re.findall(r"(20\d{2}\.\d{2}\.\d{2})[^0-9]{0,30}(\d+(?:\.\d+)?)", response.text)
@@ -533,7 +536,7 @@ class KRXKorRates:
                     try:
                         dates.append(datetime.strptime(date_text, "%Y.%m.%d").date())
                     except Exception:
-                        dates.append(target)
+                        dates.append(None)
 
             if not values:
                 logger.debug("kr_rates::_fetch_naver no values asset=%s code=%s", asset, code)
@@ -545,6 +548,7 @@ class KRXKorRates:
             return (
                 {
                     "value": values[0],
+                    "source_date": dates[0],
                     "prev": prev,
                     "prev_date": prev_date,
                     "source": "naver",
@@ -601,23 +605,24 @@ class KRXKorRates:
         col = asset.lower()
         if col not in frame.columns:
             return None, f"parse_failed:KIS,column_missing:{col}"
-        series = pd.to_numeric(frame[col], errors="coerce").dropna()
-        if series.empty:
+        valid = frame[["ts_kst", col]].copy()
+        valid[col] = pd.to_numeric(valid[col], errors="coerce")
+        valid["ts_kst"] = pd.to_datetime(valid["ts_kst"], errors="coerce")
+        valid = valid.dropna(subset=["ts_kst", col]).sort_values("ts_kst")
+        if valid.empty:
             return None, f"parse_failed:KIS,value_missing:{col}"
-        value = float(series.iloc[-1])
+        value = float(valid.iloc[-1][col])
         if not (0 < value < 10):
             return None, "range_violation:KIS,0-10pct"
-        prev = float(series.iloc[-2]) if len(series) >= 2 else None
-        prev_date = None
-        if len(series) >= 2 and "ts_kst" in frame.columns:
-            ts = pd.to_datetime(frame["ts_kst"], errors="coerce").dropna()
-            if len(ts) >= 2:
-                prev_date = ts.iloc[-2].date()
+        source_date = valid.iloc[-1]["ts_kst"].date()
+        prev = float(valid.iloc[-2][col]) if len(valid) >= 2 else None
+        prev_date = valid.iloc[-2]["ts_kst"].date() if len(valid) >= 2 else None
         return (
             {
                 "value": value,
                 "prev": prev,
                 "prev_date": prev_date,
+                "source_date": source_date,
                 "source": "KIS",
                 "quality": "final",
                 "url": "https://finance.koreainvestment.com/bond",
@@ -673,7 +678,8 @@ class KRXKorRates:
         )
 
     def _build_frame(self, asset: str, target: date, payload: Dict[str, object]) -> pd.DataFrame:
-        ts = datetime.combine(target, dtime(hour=17, minute=0), tzinfo=KST)
+        day = quote_day(payload.get("source_date"))
+        ts = datetime.combine(day, dtime(), tzinfo=KST) if day else datetime.now(KST)
         rows = [
             {
                 "ts_kst": ts,
@@ -685,7 +691,7 @@ class KRXKorRates:
                 "source": payload["source"],
                 "quality": payload["quality"],
                 "url": payload["url"],
-                "notes": payload["note"],
+                "notes": bind_note(payload["note"], day),
             }
         ]
         prev_value = payload.get("prev")
@@ -702,7 +708,7 @@ class KRXKorRates:
                     "source": payload["source"],
                     "quality": payload["quality"],
                     "url": payload["url"],
-                    "notes": "historical",
+                    "notes": bind_note("historical", prev_date),
                 }
             )
         return pd.DataFrame(rows)
@@ -714,6 +720,7 @@ class KRXKorRates:
         assets = {"KR3Y": "3년", "KR10Y": "10년"}
         for asset, keyword in assets.items():
             payload: Optional[Dict[str, object]] = None
+            undated_payload: Optional[Dict[str, object]] = None
             failure_reason: Optional[str] = None
             failure_chain: list[str] = []
             for fetcher in (
@@ -726,12 +733,16 @@ class KRXKorRates:
             ):
                 result, error = fetcher(target, asset, keyword)
                 if result is not None:
-                    payload = result
-                    break
+                    if quote_day(result.get("source_date")) is not None:
+                        payload = result
+                        break
+                    if undated_payload is None:
+                        undated_payload = result
                 if error:
                     failure_reason = error
                     failure_chain.append(error)
                     logger.debug("kr_rates::fetch fallback asset=%s reason=%s", asset, error)
+            payload = payload or undated_payload
             if payload is None:
                 # 마지막 에러만 남기면 원인 추적이 어려워서 체인 형태로 함께 기록한다.
                 notes[f"{asset}:yield"] = " | ".join(failure_chain) if failure_chain else (failure_reason or f"parse_failed:{asset},unknown")

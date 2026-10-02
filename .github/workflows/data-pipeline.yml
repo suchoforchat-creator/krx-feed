@@ -27,16 +27,23 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
-      - run: git pull --rebase origin main || true
+      - run: git pull --rebase origin main
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
       - run: pip install -r requirements.txt
       - run: python pipeline.py --phase 0730 --tz Asia/Seoul
+      - name: Upload safe collection diagnostics
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: collection-debug-0730
+          path: debug/0730/*.json
+          if-no-files-found: ignore
       - run: |
           git config user.name 'bot'
           git config user.email 'bot@users.noreply.github.com'
-          git add -A out/ || true
+          git add -A out/
           git diff --cached --quiet || git commit -m "0730 snapshot $(date -u +%F)"
           git push
 
@@ -48,7 +55,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: true
-      - run: git pull --rebase origin main || true
+      - run: git pull --rebase origin main
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
@@ -58,9 +65,9 @@ jobs:
           git config user.name 'bot'
           git config user.email 'bot@users.noreply.github.com'
           # 디버깅 편의를 위해 out/ 폴더 전체를 스테이징하면 history.csv 누락을 쉽게 방지할 수 있습니다.
-          git add -A out/ || true
+          git add -A out/
           git diff --cached --quiet || git commit -m "1700 final $(date -u +%F)"
-          git push || true
+          git push
       - name: Upload history debug
         uses: actions/upload-artifact@v4
         if: always()
