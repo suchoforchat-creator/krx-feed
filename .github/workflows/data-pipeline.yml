@@ -6,6 +6,21 @@ on:
     - cron: '30 22 * * 0-4'
     - cron: '00 08 * * 1-5'
   workflow_dispatch:
+    inputs:
+      phase:
+        description: '0730 snapshot, 1700 completed session, or one-shot recovery of both'
+        type: choice
+        options: ['0730', '1700', 'recovery']
+        default: '0730'
+        required: true
+      expected_target_date:
+        description: 'Expected latest completed KRX session YYYY-MM-DD (required for recovery)'
+        type: string
+        default: ''
+      expected_observation_date:
+        description: 'Expected actual KST observation date YYYY-MM-DD (required for recovery)'
+        type: string
+        default: ''
 
 permissions:
   contents: write
@@ -20,7 +35,7 @@ env:
   
 jobs:
   collect_0730:
-    if: github.event.schedule == '30 22 * * 0-4'
+    if: github.event.schedule == '30 22 * * 0-4' || (github.event_name == 'workflow_dispatch' && inputs.phase == '0730')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -31,14 +46,22 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: python pipeline.py --phase 0730 --tz Asia/Seoul
+      - run: pip install -r requirements.txt pytest
+      - name: Offline regression before collection
+        run: python -B -m pytest -q -p no:cacheprovider
+      - run: python pipeline.py --phase 0730 --tz Asia/Seoul --expected-target-date "$EXPECTED_TARGET_DATE" --expected-observation-date "$EXPECTED_OBSERVATION_DATE"
+        env:
+          EXPECTED_TARGET_DATE: ${{ inputs.expected_target_date }}
+          EXPECTED_OBSERVATION_DATE: ${{ inputs.expected_observation_date }}
       - name: Upload safe collection diagnostics
         uses: actions/upload-artifact@v4
         if: always()
         with:
           name: collection-debug-0730
-          path: debug/0730/*.json
+          path: |
+            debug/0730/*.json
+            out/latest.csv
+            out/history.csv
           if-no-files-found: ignore
       - run: |
           git config user.name 'bot'
@@ -48,7 +71,7 @@ jobs:
           git push
 
   finalize_1700:
-    if: github.event.schedule == '00 08 * * 1-5'
+    if: github.event.schedule == '00 08 * * 1-5' || (github.event_name == 'workflow_dispatch' && (inputs.phase == '1700' || inputs.phase == 'recovery'))
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -59,8 +82,14 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.11'
-      - run: pip install -r requirements.txt
-      - run: python pipeline.py --phase 1700 --tz Asia/Seoul --reconcile
+      - run: pip install -r requirements.txt pytest
+      - name: Offline regression before collection
+        run: python -B -m pytest -q -p no:cacheprovider
+      - run: python pipeline.py --phase "$REQUESTED_PHASE" --tz Asia/Seoul --reconcile --expected-target-date "$EXPECTED_TARGET_DATE" --expected-observation-date "$EXPECTED_OBSERVATION_DATE"
+        env:
+          REQUESTED_PHASE: ${{ inputs.phase || '1700' }}
+          EXPECTED_TARGET_DATE: ${{ inputs.expected_target_date }}
+          EXPECTED_OBSERVATION_DATE: ${{ inputs.expected_observation_date }}
       - run: |
           git config user.name 'bot'
           git config user.email 'bot@users.noreply.github.com'
@@ -75,4 +104,7 @@ jobs:
           name: history-debug-1700
           path: |
             debug/1700/*.json
+            debug/recovery/*.json
+            out/latest.csv
+            out/history.csv
           if-no-files-found: ignore

@@ -41,15 +41,13 @@ def _threshold_for(row: Dict) -> float:
 
 def reconcile(records: List[Dict], daily_path: Path) -> List[Dict]:
     if not daily_path.exists():
-        for row in records:
-            row["quality"] = "final"
         return records
 
     previous = pd.read_csv(daily_path)
     previous.set_index(["asset", "key", "window"], inplace=True)
 
     for row in records:
-        row["quality"] = "final"
+        # Batch reconciliation is not evidence of source quality/finality.
         idx = (row.get("asset"), row.get("key"), row.get("window"))
         if idx in previous.index:
             old_value = previous.loc[idx].get("value")

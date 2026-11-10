@@ -4,6 +4,8 @@ import argparse
 import json
 import re
 import sys
+import shutil
+from tempfile import TemporaryDirectory
 from datetime import datetime, date
 from pathlib import Path
 from typing import Dict, Tuple
@@ -23,9 +25,10 @@ from src.sources.us_yields import USTYieldCollector
 from src.storage import append_log, cleanup_daily, write_daily, write_latest, write_raw
 from src.universe import load_universe
 from src.utils import KST, load_yaml
-from src.session_dates import completed_session
+from src.session_dates import completed_session, is_session
+from src.session_inputs import history_raw_as_of
 from src.source_dates import bind_note, quote_day
-from src.failure_diagnostic import write_failure
+from src.failure_diagnostic import write_failure, write_history_input_review
 
 
 def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
@@ -41,9 +44,11 @@ def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="KRX feed pipeline")
-    parser.add_argument("--phase", required=True)
+    parser.add_argument("--phase", required=True, choices=["0730", "1700", "EOD", "recovery"])
     parser.add_argument("--tz", default="Asia/Seoul")
     parser.add_argument("--reconcile", action="store_true")
+    parser.add_argument("--expected-target-date", default="")
+    parser.add_argument("--expected-observation-date", default="")
     return parser.parse_args()
 
 
@@ -375,6 +380,28 @@ def collect_raw(config: Dict, phase: str, *, run_ts=None, target_date=None) -> T
     return raw_frames, failure_notes, metrics
 
 
+def checked_target(args, ts):
+    """A manual expectation constrains the live clock; it never relabels data."""
+    if args.phase not in {"0730", "1700", "EOD", "recovery"}:
+        raise ValueError("UNSUPPORTED_PHASE")
+    if getattr(args, "tz", "Asia/Seoul") != "Asia/Seoul":
+        raise ValueError("UNSUPPORTED_TIMEZONE")
+    target = completed_session(ts, args.phase)
+    expected = getattr(args, "expected_target_date", "")
+    observed = getattr(args, "expected_observation_date", "")
+    if args.phase == "recovery" and (not expected or not observed):
+        raise ValueError("RECOVERY_DATE_BINDING_REQUIRED")
+    for text, actual in ((expected, target), (observed, ts.date())):
+        if text:
+            if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+                raise ValueError("EXACT_DATE_FORMAT_REQUIRED")
+            if date.fromisoformat(text) != actual:
+                raise ValueError("EXPECTED_DATE_MISMATCH")
+    if args.phase == "recovery" and not is_session(ts.date()):
+        raise ValueError("RECOVERY_OBSERVATION_SESSION_REQUIRED")
+    return target
+
+
 def main() -> int:
     args = parse_args()
     config = load_yaml(Path("conf.yml"))
@@ -383,7 +410,7 @@ def main() -> int:
     append_log(ts, "start", {"phase": args.phase})
 
     try:
-        target_date = completed_session(ts, args.phase)
+        target_date = checked_target(args, ts)
         raw_frames, notes, metrics = collect_raw(config, args.phase, run_ts=ts, target_date=target_date)
         append_log(ts, "raw", {"assets": list(raw_frames)})
         if metrics.get("symbol_not_found"):
@@ -392,43 +419,46 @@ def main() -> int:
 
         # VIX는 다른 지표와 동일하게 latest.csv에 남겨 history 업서트에도 활용합니다.
         # 네트워크 상태에 따라 어떤 소스가 성공했는지 쉽게 확인할 수 있도록 notes/source를 그대로 기록합니다.
-        records.append(fetch_vix())
-
-        # 17:00 KST 배치에서는 history 업서트를 위해 window="EOD" 플래그를 미리 지정합니다.
-        if args.phase in {"1700", "EOD"}:
-            records_frame = mark_eod(pd.DataFrame(records))
-            records = records_frame.to_dict("records")
+        vix_record = fetch_vix()
+        records.append(vix_record)
 
         coverage = compute.check_coverage(records)
         append_log(ts, "coverage", {"ratio": coverage})
 
-        latest_path = write_latest(records)
-        daily_path = write_daily(records, ts)
-        cleanup_daily()
-
         if coverage < 0.8:
             append_log(ts, "warning", {"reason": "coverage", "ratio": coverage})
 
+        # Compare the preserved prior observation, not the file just written.
+        daily_path = Path("out/daily") / (ts.strftime("%Y%m%d") + ".csv")
         if args.reconcile:
-            reconciled = reconcile.reconcile(records, daily_path)
-            if args.phase in {"1700", "EOD"}:
-                reconciled_df = pd.DataFrame(reconciled)
-                reconciled_df = mark_eod(reconciled_df)
-                reconciled = reconciled_df.to_dict("records")
-            write_latest(reconciled)
-            write_daily(reconciled, ts)
+            records = reconcile.reconcile(records, daily_path)
 
-        # 17:00 배치에서는 latest.csv를 기반으로 history.csv를 업서트하고 결과를 JSON으로 출력합니다.
-        if args.phase in {"1700", "EOD"}:
+        # Latest is an observation snapshot. History is a completed-session
+        # projection calculated from a separate copy of the same raw series.
+        # Validate history in staging before touching the existing outputs.
+        if args.phase in {"1700", "EOD", "recovery"}:
             debug_dir = Path("debug") / "1700"
-            report = update_history.upsert_from_latest(
-                latest_path,
-                Path("out") / "history.csv",
-                debug_dir=debug_dir,
-                now=ts,
-                target_date=target_date,
-                require_source_dates=True,
-            )
+            history_raw, selection = history_raw_as_of(raw_frames, target_date)
+            history_records = compute.compute_records(ts, history_raw, notes)
+            history_records.append(dict(vix_record))
+            history_frame = mark_eod(pd.DataFrame(history_records))
+            write_history_input_review(debug_dir / "history_inputs.json", ts,
+                                       target_date, records, history_records, selection)
+            history_path = Path("out/history.csv")
+            with TemporaryDirectory(prefix="krx-history-") as staging:
+                staging = Path(staging)
+                history_input = staging / "history_input.csv"
+                staged_history = staging / "history.csv"
+                history_frame.to_csv(history_input, index=False)
+                if history_path.exists():
+                    shutil.copyfile(history_path, staged_history)
+                report = update_history.upsert_from_latest(
+                    history_input, staged_history, debug_dir=debug_dir,
+                    now=ts, target_date=target_date, require_source_dates=True)
+                if not staged_history.exists() or staged_history.stat().st_size == 0:
+                    raise ValueError("HISTORY_OUTPUT_MISSING")
+                history_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(staged_history, history_path)
             print(
                 "[history-upsert]",
                 json.dumps(
@@ -442,14 +472,11 @@ def main() -> int:
 
             # 초심자 디버깅 팁: history.csv가 실제로 생성되었는지 즉시 확인하면,
             # 이후 단계에서 "파일이 없어 업서트가 안 됐다" 같은 문제를 빠르게 찾을 수 있습니다.
-            from pathlib import Path as _Path
-
-            history_path = _Path("out/history.csv")
             if (not history_path.exists()) or history_path.stat().st_size == 0:
                 print("[history-upsert] ERROR: out/history.csv missing or empty")
                 # SystemExit(2)를 던지면 GitHub Actions와 로컬 실행 모두 실패로 표시되어,
                 # 사용자가 로그를 확인하고 원인을 추적할 수 있습니다.
-                raise SystemExit(2)
+                raise ValueError("HISTORY_OUTPUT_MISSING")
 
             print(
                 "[history-upsert] OK",
@@ -462,10 +489,14 @@ def main() -> int:
                 ),
             )
 
-        append_log(ts, "success", {"phase": args.phase})
+        write_latest(records)
+        write_daily(records, ts)
+        if args.phase != "recovery":
+            cleanup_daily()
+        append_log(ts, "success", {"phase": args.phase, "history_target": target_date.isoformat()})
         return 0
     except Exception as exc:  # pragma: no cover
-        safe_phase = args.phase if args.phase in {"0730", "1700", "EOD"} else "unknown"
+        safe_phase = args.phase if args.phase in {"0730", "1700", "EOD", "recovery"} else "unknown"
         evidence = write_failure(Path("debug") / safe_phase / "pipeline_failure.json", exc, "pipeline_main")
         append_log(ts, "failure", {"phase": safe_phase, "error_type": evidence["exception_type"]})
         return 1
