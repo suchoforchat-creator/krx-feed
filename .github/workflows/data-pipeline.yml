@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       phase:
-        description: '0730 snapshot, 1700 completed session, or one-shot recovery of both'
+        description: '0730 snapshot + previous-close catch-up, 1700 completed session, or strict recovery'
         type: choice
         options: ['0730', '1700', 'recovery']
         default: '0730'
@@ -53,7 +53,7 @@ jobs:
         env:
           EXPECTED_TARGET_DATE: ${{ inputs.expected_target_date }}
           EXPECTED_OBSERVATION_DATE: ${{ inputs.expected_observation_date }}
-      - name: Upload safe collection diagnostics
+      - name: Upload snapshot and previous-close diagnostics
         uses: actions/upload-artifact@v4
         if: always()
         with:

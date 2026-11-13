@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import re
 import sys
@@ -402,6 +403,76 @@ def checked_target(args, ts):
     return target
 
 
+def _same_history_content(previous: Path, candidate: Path) -> bool:
+    """Reuse an identical validated bucket without refreshing its observation time.
+
+    Both inputs include every historical row. Only the newly observed timestamp
+    is ignored; values, metric source dates, quality and all other lineage stay
+    part of the comparison. This is not an alternative to source validation.
+    """
+    if not previous.exists():
+        return False
+    frames = [pd.read_csv(path, dtype=str, keep_default_na=False)
+              for path in (previous, candidate)]
+    for frame in frames:
+        if list(frame.columns) != update_history.HISTORY_COLUMNS:
+            return False
+        frame["src_tag"] = frame["src_tag"].map(
+            lambda text: "|".join(token for token in text.split("|")
+                                  if not token.startswith("observation_time=")))
+    return frames[0].equals(frames[1])
+
+
+def _validate_existing_history_header(path: Path) -> None:
+    """Do not let the legacy loader silently repair a damaged published schema."""
+    if not path.exists():
+        return
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        header = next(csv.reader(handle, strict=True), None)
+    if (header != update_history.HISTORY_COLUMNS
+            or len(header) != len(set(header))):
+        raise ValueError("HISTORY_SCHEMA_MISMATCH")
+
+
+def update_completed_history(raw_frames, notes, vix_record, records, ts, target_date, phase):
+    """Use the already collected raw series for one strictly verified session.
+
+    Morning and closing runs share this path. A temporary directory isolates
+    failed history validation from both the preserved history and latest output.
+    The caller alone decides whether a known morning source delay is partial.
+    """
+    debug_dir = Path("debug") / ("0730" if phase == "0730" else "1700")
+    history_raw, selection = history_raw_as_of(raw_frames, target_date)
+    history_records = compute.compute_records(ts, history_raw, notes)
+    history_records.append(dict(vix_record))
+    history_frame = mark_eod(pd.DataFrame(history_records))
+    write_history_input_review(debug_dir / "history_inputs.json", ts,
+                               target_date, records, history_records, selection)
+    history_path = Path("out/history.csv")
+    _validate_existing_history_header(history_path)
+    with TemporaryDirectory(prefix="krx-history-") as staging:
+        staging = Path(staging)
+        history_input = staging / "history_input.csv"
+        staged_history = staging / "history.csv"
+        history_frame.to_csv(history_input, index=False)
+        if history_path.exists():
+            shutil.copyfile(history_path, staged_history)
+        report = update_history.upsert_from_latest(
+            history_input, staged_history, debug_dir=debug_dir,
+            now=ts, target_date=target_date, require_source_dates=True)
+        if not staged_history.exists() or staged_history.stat().st_size == 0:
+            raise ValueError("HISTORY_OUTPUT_MISSING")
+        unchanged = _same_history_content(history_path, staged_history)
+        if not unchanged:
+            history_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(staged_history, history_path)
+    result = {"history_status": "UNCHANGED_VERIFIED" if unchanged else "UPDATED_VERIFIED",
+              "history_target": target_date.isoformat()}
+    print("[history-upsert]", json.dumps({**result, "steps": report.steps,
+                                          "field_status": report.field_status}, ensure_ascii=False))
+    return result
+
+
 def main() -> int:
     args = parse_args()
     config = load_yaml(Path("conf.yml"))
@@ -433,67 +504,32 @@ def main() -> int:
         if args.reconcile:
             records = reconcile.reconcile(records, daily_path)
 
-        # Latest is an observation snapshot. History is a completed-session
-        # projection calculated from a separate copy of the same raw series.
-        # Validate history in staging before touching the existing outputs.
-        if args.phase in {"1700", "EOD", "recovery"}:
-            debug_dir = Path("debug") / "1700"
-            history_raw, selection = history_raw_as_of(raw_frames, target_date)
-            history_records = compute.compute_records(ts, history_raw, notes)
-            history_records.append(dict(vix_record))
-            history_frame = mark_eod(pd.DataFrame(history_records))
-            write_history_input_review(debug_dir / "history_inputs.json", ts,
-                                       target_date, records, history_records, selection)
-            history_path = Path("out/history.csv")
-            with TemporaryDirectory(prefix="krx-history-") as staging:
-                staging = Path(staging)
-                history_input = staging / "history_input.csv"
-                staged_history = staging / "history.csv"
-                history_frame.to_csv(history_input, index=False)
-                if history_path.exists():
-                    shutil.copyfile(history_path, staged_history)
-                report = update_history.upsert_from_latest(
-                    history_input, staged_history, debug_dir=debug_dir,
-                    now=ts, target_date=target_date, require_source_dates=True)
-                if not staged_history.exists() or staged_history.stat().st_size == 0:
-                    raise ValueError("HISTORY_OUTPUT_MISSING")
-                history_path.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(staged_history, history_path)
-            print(
-                "[history-upsert]",
-                json.dumps(
-                    {
-                        "steps": report.steps,
-                        "field_status": report.field_status,
-                    },
-                    ensure_ascii=False,
-                ),
-            )
-
-            # 초심자 디버깅 팁: history.csv가 실제로 생성되었는지 즉시 확인하면,
-            # 이후 단계에서 "파일이 없어 업서트가 안 됐다" 같은 문제를 빠르게 찾을 수 있습니다.
-            if (not history_path.exists()) or history_path.stat().st_size == 0:
-                print("[history-upsert] ERROR: out/history.csv missing or empty")
-                # SystemExit(2)를 던지면 GitHub Actions와 로컬 실행 모두 실패로 표시되어,
-                # 사용자가 로그를 확인하고 원인을 추적할 수 있습니다.
-                raise ValueError("HISTORY_OUTPUT_MISSING")
-
-            print(
-                "[history-upsert] OK",
-                json.dumps(
-                    {
-                        "path": str(history_path),
-                        "size": history_path.stat().st_size,
-                    },
-                    ensure_ascii=False,
-                ),
-            )
+        # Morning's same raw inputs can repair a delayed previous close without
+        # another collection or schedule. Dates/values are never relabelled.
+        try:
+            history_result = update_completed_history(
+                raw_frames, notes, vix_record, records, ts, target_date, args.phase)
+        except ValueError as exc:
+            # Only the known missing core source-date outcome is a morning
+            # partial result. Schema errors, corruption and closing/recovery
+            # failures still stop publication rather than masquerade as success.
+            if args.phase != "0730" or str(exc) not in {
+                    "SOURCE_DATE_NOT_READY:KOSPI", "SOURCE_DATE_NOT_READY:KOSDAQ"}:
+                raise
+            evidence = write_failure(Path("debug/0730/history_failure.json"), exc, "morning_history")
+            history_result = {"history_status": "WAITING_SOURCE",
+                              "history_target": target_date.isoformat(),
+                              "history_reason_code": evidence["reason_code"]}
+            append_log(ts, "warning", {"phase": args.phase, **history_result})
+            print("[history-upsert] PARTIAL", json.dumps(history_result, ensure_ascii=False))
 
         write_latest(records)
         write_daily(records, ts)
         if args.phase != "recovery":
             cleanup_daily()
-        append_log(ts, "success", {"phase": args.phase, "history_target": target_date.isoformat()})
+        event = "partial_success" if history_result["history_status"] == "WAITING_SOURCE" else "success"
+        append_log(ts, event, {"phase": args.phase, "latest_status": "PUBLISHED",
+                              "daily_status": "PUBLISHED", **history_result})
         return 0
     except Exception as exc:  # pragma: no cover
         safe_phase = args.phase if args.phase in {"0730", "1700", "EOD", "recovery"} else "unknown"

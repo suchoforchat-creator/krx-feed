@@ -85,6 +85,16 @@ def write_old_daily(tmp_path, *, kospi=90, kosdaq=80):
     return path
 
 
+def write_old_history(path):
+    """A valid prior output, distinct from dedicated malformed-schema fixtures."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    row = {column: "" for column in pipeline.update_history.HISTORY_COLUMNS}
+    row.update(time_kst="2026-11-06 15:30:00", kospi="90", kosdaq="80",
+               src_tag="previous-fixture", quality="secondary")
+    pd.DataFrame([row], columns=pipeline.update_history.HISTORY_COLUMNS).to_csv(path, index=False)
+    return path.read_bytes()
+
+
 def test_recovery_main_keeps_current_snapshot_and_prior_completed_history(monkeypatch, tmp_path):
     inputs, calls = setup_main(monkeypatch, tmp_path)
     originals = {asset: frame.copy(deep=True) for asset, frame in inputs.items()}
@@ -127,7 +137,7 @@ def test_core_failure_preserves_all_existing_output_bytes(monkeypatch, tmp_path,
     latest = tmp_path / "out/latest.csv"
     history = tmp_path / "out/history.csv"
     latest.write_bytes(b"existing latest bytes\r\n")
-    history.write_bytes(b"existing history bytes\r\n")
+    write_old_history(history)
     before = {path: path.read_bytes() for path in (latest, daily, history)}
     assert pipeline.main() == 1
     assert len(calls["collect"]) == 1
@@ -224,3 +234,183 @@ def test_cli_rejects_unknown_phase_before_main_can_collect(monkeypatch):
     with pytest.raises(SystemExit) as exc:
         pipeline.parse_args()
     assert exc.value.code == 2
+
+
+def runner_events(tmp_path, day="20261110"):
+    path = tmp_path / "out/logs" / ("runner_" + day + ".json")
+    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+
+
+def test_morning_repairs_previous_close_using_one_collection(monkeypatch, tmp_path):
+    inputs, calls = setup_main(monkeypatch, tmp_path, phase="0730")
+    original = {asset: frame.copy(deep=True) for asset, frame in inputs.items()}
+    assert pipeline.main() == 0
+    assert len(calls["collect"]) == 1
+    assert calls["vix"] == 1
+    assert calls["cleanup"] == 1
+    latest = pd.read_csv(tmp_path / "out/latest.csv")
+    history = pd.read_csv(tmp_path / "out/history.csv")
+    assert core(latest)["value"] == 110
+    assert note_date(core(latest)["notes"]) == date(2026, 11, 10)
+    assert history.iloc[0]["kospi"] == 100
+    assert list(history["time_kst"]) == ["2026-11-09 15:30:00"]
+    for asset in inputs:
+        pd.testing.assert_frame_equal(inputs[asset], original[asset])
+    event = runner_events(tmp_path)[-1]
+    assert event["event"] == "success"
+    assert event["latest_status"] == "PUBLISHED"
+    assert event["daily_status"] == "PUBLISHED"
+    assert event["history_status"] == "UPDATED_VERIFIED"
+    assert event["history_target"] == "2026-11-09"
+    assert (tmp_path / "debug/0730/history_inputs.json").exists()
+
+
+@pytest.mark.parametrize("asset", ["KOSPI", "KOSDAQ"])
+@pytest.mark.parametrize("existing_history", [True, False])
+def test_morning_delayed_core_is_partial_preserves_history(monkeypatch, tmp_path, asset, existing_history):
+    inputs = {name: raw() for name in ("KOSPI", "KOSDAQ")}
+    inputs[asset] = raw(days=("2026-11-06",), values=(99,))
+    _, calls = setup_main(monkeypatch, tmp_path, phase="0730", inputs=inputs)
+    history = tmp_path / "out/history.csv"
+    old_bytes = None
+    if existing_history:
+        old_bytes = write_old_history(history)
+    assert pipeline.main() == 0
+    assert len(calls["collect"]) == 1
+    assert calls["vix"] == 1
+    if existing_history:
+        assert history.read_bytes() == old_bytes
+    else:
+        assert not history.exists()
+    latest = pd.read_csv(tmp_path / "out/latest.csv")
+    assert note_date(core(latest, asset)["notes"]) == date(2026, 11, 6)
+    assert core(latest, asset)["value"] == 99
+    event = runner_events(tmp_path)[-1]
+    assert event["event"] == "partial_success"
+    assert event["latest_status"] == "PUBLISHED"
+    assert event["history_status"] == "WAITING_SOURCE"
+    assert event["history_reason_code"] == "SOURCE_DATE_NOT_READY:" + asset
+    text = (tmp_path / "debug/0730/history_failure.json").read_text(encoding="utf-8")
+    assert SECRET not in text
+    assert json.loads(text)["reason_code"] == "SOURCE_DATE_NOT_READY:" + asset
+
+
+@pytest.mark.parametrize("phase", ["1700", "EOD", "recovery"])
+def test_closing_and_explicit_recovery_remain_strict_on_source_delay(monkeypatch, tmp_path, phase):
+    inputs = {name: raw(days=("2026-11-06",), values=(99,)) for name in ("KOSPI", "KOSDAQ")}
+    _, calls = setup_main(monkeypatch, tmp_path, phase=phase, inputs=inputs)
+    daily = write_old_daily(tmp_path)
+    latest = tmp_path / "out/latest.csv"
+    history = tmp_path / "out/history.csv"
+    latest.write_bytes(b"old latest")
+    write_old_history(history)
+    preserved = {path: path.read_bytes() for path in (daily, latest, history)}
+    assert pipeline.main() == 1
+    assert len(calls["collect"]) == 1
+    for path, expected in preserved.items():
+        assert path.read_bytes() == expected
+    assert runner_events(tmp_path)[-1]["event"] == "failure"
+
+
+@pytest.mark.parametrize("exc", [ValueError(SECRET), PermissionError(SECRET),
+                                ValueError("SOURCE_DATE_NOT_READY:notes_missing"),
+                                ValueError("SOURCE_DATE_NOT_READY:KOSPI:" + SECRET)])
+def test_morning_unexpected_error_is_not_partial_success(monkeypatch, tmp_path, exc):
+    setup_main(monkeypatch, tmp_path, phase="0730")
+    daily = write_old_daily(tmp_path)
+    latest = tmp_path / "out/latest.csv"
+    history = tmp_path / "out/history.csv"
+    latest.write_bytes(b"old latest")
+    history.write_bytes(b"old history")
+    preserved = {path: path.read_bytes() for path in (daily, latest, history)}
+
+    def fail(*args, **kwargs):
+        raise exc
+
+    monkeypatch.setattr(pipeline, "update_completed_history", fail)
+    assert pipeline.main() == 1
+    for path, expected in preserved.items():
+        assert path.read_bytes() == expected
+    events = runner_events(tmp_path)
+    assert events[-1]["event"] == "failure"
+    assert not any(e["event"] in {"success", "partial_success"} for e in events)
+    assert SECRET not in (tmp_path / "debug/0730/pipeline_failure.json").read_text(encoding="utf-8")
+
+
+def test_repeat_verified_morning_keeps_history_bytes_and_original_observation(monkeypatch, tmp_path):
+    setup_main(monkeypatch, tmp_path, phase="0730")
+    assert pipeline.main() == 0
+    history = tmp_path / "out/history.csv"
+    original = history.read_bytes()
+    setup_main(monkeypatch, tmp_path, phase="0730", now=NOW.replace(minute=25))
+    assert pipeline.main() == 0
+    assert history.read_bytes() == original
+    assert runner_events(tmp_path)[-1]["history_status"] == "UNCHANGED_VERIFIED"
+
+
+def test_corrected_same_session_value_is_not_suppressed_by_reuse(monkeypatch, tmp_path):
+    setup_main(monkeypatch, tmp_path, phase="0730")
+    assert pipeline.main() == 0
+    history = tmp_path / "out/history.csv"
+    original = history.read_bytes()
+    inputs = {asset: raw(values=(101, 110)) for asset in ("KOSPI", "KOSDAQ")}
+    setup_main(monkeypatch, tmp_path, phase="0730", inputs=inputs, now=NOW.replace(minute=25))
+    assert pipeline.main() == 0
+    assert history.read_bytes() != original
+    assert pd.read_csv(history).iloc[0]["kospi"] == 101
+    assert runner_events(tmp_path)[-1]["history_status"] == "UPDATED_VERIFIED"
+
+
+@pytest.mark.parametrize("bad_target", ["2026-11-10", "2026-11-11", "2026-11-08"])
+def test_morning_cannot_claim_current_future_or_closed_session(monkeypatch, tmp_path, bad_target):
+    _, calls = setup_main(monkeypatch, tmp_path, phase="0730", expected_target_date=bad_target)
+    assert pipeline.main() == 1
+    assert calls["collect"] == []
+    assert not (tmp_path / "out/latest.csv").exists()
+
+
+def test_morning_catches_delayed_close_without_backfilling_earlier_gap(monkeypatch, tmp_path):
+    now = datetime(2026, 11, 13, 11, 46, tzinfo=KST)
+    inputs = {asset: raw(days=("2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13"),
+                         values=(100, 101, 102, 103)) for asset in ("KOSPI", "KOSDAQ")}
+    _, calls = setup_main(monkeypatch, tmp_path, phase="0730", inputs=inputs, now=now,
+                          expected_target_date="2026-11-12", expected_observation_date="2026-11-13")
+    assert pipeline.main() == 0
+    assert len(calls["collect"]) == 1
+    history = pd.read_csv(tmp_path / "out/history.csv")
+    assert list(history["time_kst"]) == ["2026-11-12 15:30:00"]
+    assert history.iloc[0]["kospi"] == 102
+    assert core(pd.read_csv(tmp_path / "out/latest.csv"))["value"] == 103
+    assert runner_events(tmp_path, "20261113")[-1]["history_status"] == "UPDATED_VERIFIED"
+
+
+@pytest.mark.parametrize("kind", ["missing", "extra", "duplicate"])
+def test_morning_rejects_damaged_history_header_before_legacy_loader(monkeypatch, tmp_path, kind):
+    setup_main(monkeypatch, tmp_path, phase="0730")
+    daily = write_old_daily(tmp_path)
+    latest = tmp_path / "out/latest.csv"
+    history = tmp_path / "out/history.csv"
+    latest.write_bytes(b"existing latest bytes\r\n")
+    columns = list(pipeline.update_history.HISTORY_COLUMNS)
+    if kind == "missing":
+        columns.remove("vix")
+    elif kind == "extra":
+        columns.append("unknown_column")
+    else:
+        columns.append("kospi")
+    history.write_text(",".join(columns) + "\n", encoding="utf-8")
+    original = {path: path.read_bytes() for path in (latest, daily, history)}
+    upsert_calls = []
+
+    def forbidden_upsert(*args, **kwargs):
+        upsert_calls.append(True)
+        raise AssertionError("The permissive legacy history loader must not run")
+
+    monkeypatch.setattr(pipeline.update_history, "upsert_from_latest", forbidden_upsert)
+    with pytest.raises(ValueError, match="^HISTORY_SCHEMA_MISMATCH$"):
+        pipeline._validate_existing_history_header(history)
+    assert pipeline.main() == 1
+    assert upsert_calls == []
+    for path, expected in original.items():
+        assert path.read_bytes() == expected
+    assert runner_events(tmp_path)[-1]["event"] == "failure"
