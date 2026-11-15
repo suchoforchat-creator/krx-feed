@@ -1,6 +1,6 @@
 # KRX Feed Pipeline
 
-이 프로젝트는 한국투자증권(KIS) API를 1차 소스로 사용해 07:30/17:00 KST 파이프라인을 실행하고, 확보한 원시 시계열을 `raw/`에 저장한 뒤 파생 지표만 `out/latest.csv`와 `out/daily/*.csv`에 반영합니다. 17:00 실행 시에는 1차 소스 기준으로 리컨실을 수행합니다.
+이 프로젝트는 07:30/17:00 KST 예약 파이프라인에서 공개 시장자료를 수집합니다. KIS 조회 자격증명이 실행 환경에 있을 때만 KIS를 우선하고, 없으면 설정된 공개 원천을 사용합니다. 증권사 주문을 실행하는 파이프라인이 아닙니다. 확보한 원시 시계열을 `raw/`에 저장하고 계산 결과를 `out/latest.csv`와 `out/daily/*.csv`에 반영합니다.
 
 ## 요구 사항 요약
 
@@ -19,7 +19,15 @@ python pipeline.py --phase 0730 --tz Asia/Seoul
 python pipeline.py --phase 1700 --tz Asia/Seoul --reconcile
 ```
 
-실행 결과는 `out/latest.csv`, `out/daily/<날짜>.csv`, `out/logs/runner_<날짜>.json`에 기록됩니다. 실패 시 `out/debug/` 하위에 HTML 요약이 남습니다.
+실행 결과는 `out/latest.csv`, `out/daily/<날짜>.csv`, `out/logs/runner_<날짜>.json`에 기록됩니다. 파이프라인 실패의 안전한 원인은 `debug/<phase>/pipeline_failure.json`, 목표 거래일과 핵심지수 원천일은 `history_inputs.json` 및 `core_sources.json`에서 확인합니다. 실패 artifact의 `out/latest.csv`는 이전 성공본일 수 있으므로 새 수집물로 해석하지 않습니다.
+
+### 완료장 지수와 원천 지연
+
+- 수집시각과 원천일을 구분합니다. `SOURCE_DATE_NOT_READY`는 필요한 거래일 종가가 없다는 뜻이며, 과거 숫자의 날짜를 오늘로 바꿔 해결하지 않습니다.
+- KOSPI/KOSDAQ의 기존 KIS/Yahoo 응답에 완료장 목표일의 정상 종가가 없을 때만 공개 Naver 일봉 XML을 지수별 최대 1회 확인합니다. symbol·단위·정밀도·원천일·OHLC·중복을 검사하고, 기존 시계열의 누락된 목표일만 보완합니다. 목표일이 있으면 추가 조회하지 않습니다. 장중 관측을 종가로 복사하지 않습니다.
+- 보조 원천도 부족하면 기존 엄격한 종가 검사가 계속 실패하며 정본을 보존합니다. 오전에는 기존 `WAITING_SOURCE` 부분 결과와 다음 예약의 완료장 보완을 유지합니다. 인증 차단·429를 우회하지 않습니다.
+- 콘솔의 `[pipeline-status]`와 Actions 요약은 대상일·관측시각·결과를 표시합니다. 비밀정보·원시 예외본문은 넣지 않습니다. 요약 표시 실패가 정상 자료 발행을 실패로 뒤집지 않습니다.
+- `0730`과 `1700` 예약은 GitHub에서 지연될 수 있습니다. 실제 관측시각으로 완료 거래일을 판단하며 미래·휴장 종가를 합성하지 않습니다. 이전 실패는 새 성공으로 고치지 않고 다음 실행 결과와 구분합니다.
 
 ## GitHub Actions
 

@@ -30,6 +30,8 @@ from src.session_dates import completed_session, is_session
 from src.session_inputs import history_raw_as_of
 from src.source_dates import bind_note, quote_day
 from src.failure_diagnostic import write_failure, write_history_input_review
+from src.failure_diagnostic import write_core_input_review, report_pipeline_status
+from src.sources.core_index import supplement_core_index
 
 
 def mark_eod(frame: pd.DataFrame) -> pd.DataFrame:
@@ -317,9 +319,16 @@ def collect_raw(config: Dict, phase: str, *, run_ts=None, target_date=None) -> T
     rate_collector = KRXKorRates()
     ust_collector = USTYieldCollector()
     dxy_collector = DXYCollector()
+    core_reviews = []
 
     for asset in ["KOSPI", "KOSDAQ", "K200", "SPX", "NDX", "SOX"]:
         frame = market.index_series(client, asset)
+        if asset in {"KOSPI", "KOSDAQ"}:
+            frame, review = supplement_core_index(frame, asset, target_date, run_ts)
+            core_reviews.append(review)
+            # Preserve the actual selection evidence, not an old out/latest.csv.
+            write_core_input_review(Path("debug") / phase / "core_sources.json",
+                                    run_ts, target_date, core_reviews)
         raw_frames[asset] = frame
         _store_raw(asset, phase, frame)
 
@@ -479,6 +488,7 @@ def main() -> int:
 
     ts = datetime.now(KST)
     append_log(ts, "start", {"phase": args.phase})
+    target_date = None
 
     try:
         target_date = checked_target(args, ts)
@@ -530,11 +540,15 @@ def main() -> int:
         event = "partial_success" if history_result["history_status"] == "WAITING_SOURCE" else "success"
         append_log(ts, event, {"phase": args.phase, "latest_status": "PUBLISHED",
                               "daily_status": "PUBLISHED", **history_result})
+        report_pipeline_status(ts, args.phase, event, target_date,
+                               history_result.get("history_status"))
         return 0
     except Exception as exc:  # pragma: no cover
         safe_phase = args.phase if args.phase in {"0730", "1700", "EOD", "recovery"} else "unknown"
         evidence = write_failure(Path("debug") / safe_phase / "pipeline_failure.json", exc, "pipeline_main")
         append_log(ts, "failure", {"phase": safe_phase, "error_type": evidence["exception_type"]})
+        report_pipeline_status(ts, safe_phase, "failure", target_date,
+                               reason=evidence.get("reason_code", "UNCLASSIFIED_PIPELINE_ERROR"))
         return 1
 
 

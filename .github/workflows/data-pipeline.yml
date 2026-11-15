@@ -49,7 +49,8 @@ jobs:
       - run: pip install -r requirements.txt pytest
       - name: Offline regression before collection
         run: python -B -m pytest -q -p no:cacheprovider
-      - run: python pipeline.py --phase 0730 --tz Asia/Seoul --expected-target-date "$EXPECTED_TARGET_DATE" --expected-observation-date "$EXPECTED_OBSERVATION_DATE"
+      - name: Collect snapshot and verify completed-session sources
+        run: python pipeline.py --phase 0730 --tz Asia/Seoul --expected-target-date "$EXPECTED_TARGET_DATE" --expected-observation-date "$EXPECTED_OBSERVATION_DATE"
         env:
           EXPECTED_TARGET_DATE: ${{ inputs.expected_target_date }}
           EXPECTED_OBSERVATION_DATE: ${{ inputs.expected_observation_date }}
@@ -85,7 +86,8 @@ jobs:
       - run: pip install -r requirements.txt pytest
       - name: Offline regression before collection
         run: python -B -m pytest -q -p no:cacheprovider
-      - run: python pipeline.py --phase "$REQUESTED_PHASE" --tz Asia/Seoul --reconcile --expected-target-date "$EXPECTED_TARGET_DATE" --expected-observation-date "$EXPECTED_OBSERVATION_DATE"
+      - name: Collect and verify completed-session sources
+        run: python pipeline.py --phase "$REQUESTED_PHASE" --tz Asia/Seoul --reconcile --expected-target-date "$EXPECTED_TARGET_DATE" --expected-observation-date "$EXPECTED_OBSERVATION_DATE"
         env:
           REQUESTED_PHASE: ${{ inputs.phase || '1700' }}
           EXPECTED_TARGET_DATE: ${{ inputs.expected_target_date }}

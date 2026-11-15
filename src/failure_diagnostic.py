@@ -2,6 +2,7 @@
 import json
 import traceback
 import math
+import os
 from pathlib import Path
 from .source_dates import note_date
 
@@ -21,13 +22,50 @@ def write_failure(path, exc, stage):
                "SOURCE_DATE_NOT_READY:empty_latest", "SOURCE_DATE_NOT_READY:notes_missing",
                "EXPECTED_DATE_MISMATCH", "RECOVERY_DATE_BINDING_REQUIRED",
                "EXACT_DATE_FORMAT_REQUIRED", "RECOVERY_OBSERVATION_SESSION_REQUIRED",
-               "UNSUPPORTED_PHASE", "UNSUPPORTED_TIMEZONE", "HISTORY_OUTPUT_MISSING"}
+               "UNSUPPORTED_PHASE", "UNSUPPORTED_TIMEZONE", "HISTORY_OUTPUT_MISSING",
+               "CORE_INDEX_PRIMARY_INVALID", "CORE_INDEX_TARGET_INVALID", "CORE_INDEX_ASSET_UNSUPPORTED"}
     if str(exc) in allowed:
         evidence["reason_code"] = str(exc)
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     return evidence
+
+
+def write_core_input_review(path, observed_at, target_date, reviews):
+    """Selection helper returns allowlisted metadata only, never response bodies."""
+    evidence = {"schema_version": 1, "observed_at": observed_at.isoformat(),
+                "target_date": target_date.isoformat(), "sources": reviews}
+    path = Path(path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+
+def report_pipeline_status(observed_at, phase, status, target_date, history_status=None, reason=None):
+    """Expose bounded, non-secret outcome without coupling GitHub UI to data writes."""
+    phase = phase if phase in {"0730", "1700", "EOD", "recovery"} else "unknown"
+    status = status if status in {"success", "partial_success", "failure"} else "unknown"
+    allowed_history = {"UPDATED_VERIFIED", "UNCHANGED_VERIFIED", "WAITING_SOURCE"}
+    allowed_reasons = {"SOURCE_DATE_NOT_READY:KOSPI", "SOURCE_DATE_NOT_READY:KOSDAQ",
+                       "SOURCE_DATE_NOT_READY:empty_latest", "SOURCE_DATE_NOT_READY:notes_missing",
+                       "EXPECTED_DATE_MISMATCH", "RECOVERY_DATE_BINDING_REQUIRED",
+                       "EXACT_DATE_FORMAT_REQUIRED", "RECOVERY_OBSERVATION_SESSION_REQUIRED",
+                       "UNSUPPORTED_PHASE", "UNSUPPORTED_TIMEZONE", "HISTORY_OUTPUT_MISSING",
+                       "CORE_INDEX_PRIMARY_INVALID", "CORE_INDEX_TARGET_INVALID", "CORE_INDEX_ASSET_UNSUPPORTED"}
+    payload = {"phase": phase, "status": status, "observed_at": observed_at.isoformat(),
+               "target_date": target_date.isoformat() if target_date is not None else None,
+               "history_status": history_status if history_status in allowed_history else None,
+               "reason_code": reason if reason in allowed_reasons else ("UNCLASSIFIED_PIPELINE_ERROR" if reason else None)}
+    text = json.dumps(payload, ensure_ascii=False)
+    print("[pipeline-status]", text)
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    if summary:
+        try:
+            with open(summary, "a", encoding="utf-8") as handle:
+                handle.write("\n### Market data outcome\n\n```json\n" + text + "\n```\n")
+        except OSError:
+            print("[pipeline-summary] UI_WRITE_UNAVAILABLE; see pipeline-status above")
+    return payload
 
 
 def write_history_input_review(path, observed_at, target_date, latest, history, selection):
