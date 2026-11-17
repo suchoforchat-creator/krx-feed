@@ -7,7 +7,7 @@ from typing import Dict, Iterable, List, Optional, Sequence, Callable
 import numpy as np
 import pandas as pd
 
-from datetime import datetime
+from datetime import date, datetime
 import logging
 
 from .utils import (
@@ -21,6 +21,7 @@ from .utils import (
 )
 
 from .source_dates import bind_note, latest_source_date
+from .time_contract import RAW_NAIVE_TIMEZONE, normalize_kst_times
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,7 @@ class SeriesBundle:
     source: str
     quality: str
     url: str
+    source_date: Optional[date] = None
 
 
 def compute_hv(prices: Sequence[float], window: int) -> float:
@@ -180,10 +182,14 @@ def _series_from_raw(raw: Dict[str, pd.DataFrame], asset: str, field: str) -> Se
     if not required.issubset(frame.columns):
         return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
 
-    subset = frame[frame["field"] == field].copy()
+    subset = frame[frame["field"] == field].copy().reset_index(drop=True)
     if subset.empty:
         return SeriesBundle(asset, field, pd.Series(dtype=float), "", "", "")
-    subset["ts_kst"] = pd.to_datetime(subset["ts_kst"])
+    # Normalize only the selected consumer field after the existing schema
+    # boundary. Unused assets/fields and missing schemas are not new hard gates.
+    original_times = subset["ts_kst"].copy(deep=True)
+    subset["ts_kst"] = normalize_kst_times(
+        subset["ts_kst"], asset=asset, naive_timezone=RAW_NAIVE_TIMEZONE)
     subset.sort_values("ts_kst", inplace=True)
     subset["value"] = pd.to_numeric(subset["value"], errors="coerce")
     subset = subset.dropna(subset=["value", "ts_kst"])
@@ -193,7 +199,14 @@ def _series_from_raw(raw: Dict[str, pd.DataFrame], asset: str, field: str) -> Se
     source = str(subset["source"].iloc[-1]) if "source" in subset else ""
     quality = str(subset["quality"].iloc[-1]) if "quality" in subset else "primary"
     url = str(subset["url"].iloc[-1]) if "url" in subset else ""
-    return SeriesBundle(asset, field, series, source, quality, url)
+    # Retain the existing provider-date precedence, including its original
+    # timezone's date fallback when no explicit source_date/notes are present.
+    # Only the one actually consumed last row is reviewed; duplicate original
+    # indexes cannot select a different row because this copy uses positions.
+    last_source_row = subset.tail(1).copy()
+    last_source_row["ts_kst"] = [original_times.iloc[subset.index[-1]]]
+    return SeriesBundle(asset, field, series, source, quality, url,
+                        latest_source_date(last_source_row, field))
 
 
 def _latest(series: pd.Series) -> float:
@@ -275,44 +288,52 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
     ts_kst = ts_string(ts)
     records: List[Dict] = []
     notes_map = notes or {}
+    consumed_dates = {}
+
+    def series_for(asset: str, field: str) -> SeriesBundle:
+        bundle = _series_from_raw(raw, asset, field)
+        # The same selected/calculated rows supply provenance. No later scan of
+        # an unrelated raw asset/field can create a global publication gate.
+        consumed_dates[(asset, field)] = bundle.source_date
+        return bundle
 
     def note(asset: str, key: str) -> str:
         return notes_map.get(f"{asset}:{key}", "")
 
-    kospi = _series_from_raw(raw, "KOSPI", "close")
-    kosdaq = _series_from_raw(raw, "KOSDAQ", "close")
-    k200 = _series_from_raw(raw, "K200", "close")
-    spx = _series_from_raw(raw, "SPX", "close")
-    ndx = _series_from_raw(raw, "NDX", "close")
-    sox = _series_from_raw(raw, "SOX", "close")
-    es = _series_from_raw(raw, "ES", "close")
-    nq = _series_from_raw(raw, "NQ", "close")
-    dxy_series = _series_from_raw(raw, "DXY", "idx")
-    usdkrw = _series_from_raw(raw, "USD/KRW", "close")
-    kr3y = _series_from_raw(raw, "KR3Y", "yield")
-    kr10y = _series_from_raw(raw, "KR10Y", "yield")
-    ust2y = _series_from_raw(raw, "UST2Y", "yield")
-    ust10y = _series_from_raw(raw, "UST10Y", "yield")
+    kospi = series_for("KOSPI", "close")
+    kosdaq = series_for("KOSDAQ", "close")
+    k200 = series_for("K200", "close")
+    spx = series_for("SPX", "close")
+    ndx = series_for("NDX", "close")
+    sox = series_for("SOX", "close")
+    es = series_for("ES", "close")
+    nq = series_for("NQ", "close")
+    dxy_series = series_for("DXY", "idx")
+    usdkrw = series_for("USD/KRW", "close")
+    kr3y = series_for("KR3Y", "yield")
+    kr10y = series_for("KR10Y", "yield")
+    ust2y = series_for("UST2Y", "yield")
+    ust10y = series_for("UST10Y", "yield")
     # TIPS10Y는 실질금리로, FRED/MarketWatch 소스에서 들어온 데이터를 그대로 사용한다.
-    tips10y = _series_from_raw(raw, "TIPS10Y", "yield")
+    tips10y = series_for("TIPS10Y", "yield")
 
-    adv_kospi = _series_from_raw(raw, "KOSPI", "advance")
-    dec_kospi = _series_from_raw(raw, "KOSPI", "decline")
-    unch_kospi = _series_from_raw(raw, "KOSPI", "unchanged")
-    limit_up = _series_from_raw(raw, "KOSPI", "limit_up")
-    limit_down = _series_from_raw(raw, "KOSPI", "limit_down")
-    turnover = _series_from_raw(raw, "KOSPI", "trading_value")
-    trin_series = _series_from_raw(raw, "KOSPI", "trin")
+    adv_kospi = series_for("KOSPI", "advance")
+    dec_kospi = series_for("KOSPI", "decline")
+    unch_kospi = series_for("KOSPI", "unchanged")
+    limit_up = series_for("KOSPI", "limit_up")
+    limit_down = series_for("KOSPI", "limit_down")
+    turnover = series_for("KOSPI", "trading_value")
+    trin_series = series_for("KOSPI", "trin")
 
-    adv_kosdaq = _series_from_raw(raw, "KOSDAQ", "advance")
-    dec_kosdaq = _series_from_raw(raw, "KOSDAQ", "decline")
-    unch_kosdaq = _series_from_raw(raw, "KOSDAQ", "unchanged")
+    adv_kosdaq = series_for("KOSDAQ", "advance")
+    dec_kosdaq = series_for("KOSDAQ", "decline")
+    unch_kosdaq = series_for("KOSDAQ", "unchanged")
 
-    btc = _series_from_raw(raw, "BTC", "close")
-    wti = _series_from_raw(raw, "WTI", "close")
-    brent = _series_from_raw(raw, "Brent", "close")
-    gold = _series_from_raw(raw, "Gold", "close")
-    copper = _series_from_raw(raw, "Copper", "close")
+    btc = series_for("BTC", "close")
+    wti = series_for("WTI", "close")
+    brent = series_for("Brent", "close")
+    gold = series_for("Gold", "close")
+    copper = series_for("Copper", "close")
 
     records.extend(
         [
@@ -740,7 +761,7 @@ def compute_records(ts, raw: Dict[str, pd.DataFrame], notes: Optional[Dict[str, 
         asset, key = row["asset"], row["key"]
         field = "close" if key in close_keys and asset != "DXY" else key
         legs = dependencies.get((asset, key), [(asset, field)])
-        dates = [latest_source_date(raw.get(a), f) for a, f in legs]
+        dates = [consumed_dates.get((a, f)) for a, f in legs]
         known = all(day is not None for day in dates)
         same_date = known and len(set(dates)) == 1
         day = dates[0] if same_date else None
