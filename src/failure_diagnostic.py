@@ -5,6 +5,7 @@ import math
 import os
 from pathlib import Path
 from .source_dates import note_date
+from .time_contract import TIME_FAILURE, TimeContractError
 
 
 def write_failure(path, exc, stage):
@@ -23,9 +24,11 @@ def write_failure(path, exc, stage):
                "EXPECTED_DATE_MISMATCH", "RECOVERY_DATE_BINDING_REQUIRED",
                "EXACT_DATE_FORMAT_REQUIRED", "RECOVERY_OBSERVATION_SESSION_REQUIRED",
                "UNSUPPORTED_PHASE", "UNSUPPORTED_TIMEZONE", "HISTORY_OUTPUT_MISSING",
-               "CORE_INDEX_PRIMARY_INVALID", "CORE_INDEX_TARGET_INVALID", "CORE_INDEX_ASSET_UNSUPPORTED"}
+               "CORE_INDEX_PRIMARY_INVALID", "CORE_INDEX_TARGET_INVALID", "CORE_INDEX_ASSET_UNSUPPORTED", TIME_FAILURE}
     if str(exc) in allowed:
         evidence["reason_code"] = str(exc)
+    if isinstance(exc, TimeContractError):
+        evidence["time_contract"] = exc.safe_context()
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(evidence, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
@@ -51,7 +54,7 @@ def report_pipeline_status(observed_at, phase, status, target_date, history_stat
                        "EXPECTED_DATE_MISMATCH", "RECOVERY_DATE_BINDING_REQUIRED",
                        "EXACT_DATE_FORMAT_REQUIRED", "RECOVERY_OBSERVATION_SESSION_REQUIRED",
                        "UNSUPPORTED_PHASE", "UNSUPPORTED_TIMEZONE", "HISTORY_OUTPUT_MISSING",
-                       "CORE_INDEX_PRIMARY_INVALID", "CORE_INDEX_TARGET_INVALID", "CORE_INDEX_ASSET_UNSUPPORTED"}
+                       "CORE_INDEX_PRIMARY_INVALID", "CORE_INDEX_TARGET_INVALID", "CORE_INDEX_ASSET_UNSUPPORTED", TIME_FAILURE}
     payload = {"phase": phase, "status": status, "observed_at": observed_at.isoformat(),
                "target_date": target_date.isoformat() if target_date is not None else None,
                "history_status": history_status if history_status in allowed_history else None,

@@ -1,0 +1,44 @@
+name: time-contract-offline-validation
+
+on:
+  push:
+    branches: ['validation/20261117-time-contract']
+
+permissions:
+  contents: read
+
+jobs:
+  reproduce-and-verify:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    env:
+      PYTHONDONTWRITEBYTECODE: '1'
+      PYTHONIOENCODING: 'utf-8:strict'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11.18'
+      - name: Install constrained verification dependencies
+        run: pip install -r requirements.txt -c constraints-runtime.txt pytest
+      - name: Record exact Linux runtime
+        run: python -B tools/runtime_evidence.py --require-python 3.11.18 --output verification_runtime.json
+      - name: Extract immutable production baseline
+        run: |
+          mkdir "$RUNNER_TEMP/krx-baseline"
+          git archive 04c13745b5d793d3c753df529151d5352af7b27e | tar -x -C "$RUNNER_TEMP/krx-baseline"
+      - name: Reproduce old failure and verify candidate without collection
+        run: python -B tools/verify_time_contract_replay.py --baseline-root "$RUNNER_TEMP/krx-baseline" --candidate-root "$GITHUB_WORKSPACE" --output-dir verification_replay
+      - name: Preserve verification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: time-contract-offline-evidence
+          path: |
+            verification_runtime.json
+            verification_runtime.json.sha256
+            verification_replay/
+          if-no-files-found: error
